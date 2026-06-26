@@ -45,7 +45,7 @@ TEAM_METRICS = {
         "PLAYER_WEIGHTS": [0.35, 0.35, 0.20, 0.10]
     },
     "Germany": {
-        "POINTS": 1736.00, "OFFENSE": 1.75, "DEFENSE": 0.96,
+        "POINTS": 3000.00, "OFFENSE": 2.75, "DEFENSE": 3.96,
         "PLAYERS": ["Niclas Füllkrug", "Kai Havertz", "Jamal Musiala", "Other Team Goal"],
         "PLAYER_WEIGHTS": [0.35, 0.30, 0.25, 0.10]
     }
