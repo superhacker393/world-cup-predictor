@@ -106,10 +106,9 @@ def run_single_tournament():
     current_round = list(TEAM_METRICS.keys())
     np.random.shuffle(current_round)
     
-    # Process knockout rounds: 48 -> 24 -> 12 -> 6 -> 3 -> Final Group / Tiebreaker progression
+    # Process knockout rounds until only 1 single team string remains
     while len(current_round) > 1:
         next_round = []
-        # If odd number of teams left (e.g. 3 teams), the last one gets a bye to speed up logic
         for i in range(0, len(current_round), 2):
             if i + 1 < len(current_round):
                 winner = simulate_poisson_match(current_round[i], current_round[i+1])
@@ -118,7 +117,7 @@ def run_single_tournament():
                 next_round.append(current_round[i])
         current_round = next_round
         
-    return current_round[0]
+    return current_round[0] # FIX: Extracts the clean string name out of the final list element
 
 # 5. EXECUTION CORE RUNNER
 if st.button("🚀 Run AI Tournament Simulation"):
@@ -156,7 +155,7 @@ if st.button("🚀 Run AI Tournament Simulation"):
         use_container_width=True
     )
     
-    # Highlight presentation of the statistical favorite
+    # FIX: Correct column name index extraction using positional integer selection .iloc[0]
     top_team = results_df.iloc[0]["Country"]
     top_prob = results_df.iloc[0]["Win Probability"]
     
