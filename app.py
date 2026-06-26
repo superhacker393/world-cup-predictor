@@ -97,12 +97,12 @@ st.write("Leveraging Poisson Regression and historical performance data to simul
 # Dataset Ingestion Loader
 @st.cache_data
 def load_historical_data():
-    # Synthetic dataset for instantiation. Replace with your custom web-scraper / CSV data pipeline.
+    # Fixed synthetic dataset with valid integer scores
     data = {
         'home_team': ['Argentina', 'France', 'Brazil', 'England', 'Croatia', 'Morocco', 'Argentina', 'Spain', 'USA', 'Mexico', 'Germany', 'Italy'],
         'away_team': ['France', 'Brazil', 'England', 'Croatia', 'Morocco', 'Spain', 'Croatia', 'France', 'Mexico', 'Germany', 'Italy', 'USA'],
         'home_score':,
-        'away_score': [3, 0, 2, 1, 0, 2, 0, 2, 1, 2, 2, 1]
+        'away_score': [3, 1, 2, 1, 0, 2, 0, 2, 1, 1, 1, 0]
     }
     return pd.DataFrame(data)
 
