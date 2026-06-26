@@ -1,82 +1,76 @@
-import random
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
 
-# 1. DEFINE NATION RATINGS (FC 26 Estimated Database Logic)
-# ATT: Attacking, MID: Midfield, DEF: Defensive depth. 
-# Form Modifier represents recent competitive momentum.
+# 1. THE TRAINING DATA (Teaching the AI how football matches work)
+# We provide historical match data including Team ratings and who won (0=Draw, 1=Team1 Win, 2=Team2 Win)
+training_data = [
+    {"t1_att": 92, "t1_mid": 88, "t1_def": 89, "t2_att": 88, "t2_mid": 86, "t2_def": 84, "result": 1}, # Fr vs Ar (Fr Win)
+    {"t1_att": 87, "t1_mid": 91, "t1_def": 86, "t2_att": 89, "t2_mid": 87, "t2_def": 85, "result": 1}, # Sp vs En (Sp Win)
+    {"t1_att": 86, "t1_mid": 88, "t1_def": 84, "t2_att": 92, "t2_mid": 88, "t2_def": 89, "result": 2}, # Ge vs Fr (Fr Win)
+    {"t1_att": 88, "t1_mid": 86, "t1_def": 84, "t2_att": 87, "t2_mid": 87, "t2_def": 83, "result": 1}, # Ar vs Po (Ar Win)
+    {"t1_att": 89, "t1_mid": 87, "t1_def": 85, "t2_att": 88, "t2_mid": 84, "t2_def": 86, "result": 0}, # En vs Br (Draw)
+    {"t1_att": 87, "t1_mid": 91, "t1_def": 86, "t2_att": 83, "t2_mid": 85, "t2_def": 85, "result": 1}, # Sp vs Ne (Sp Win)
+    {"t1_att": 88, "t1_mid": 84, "t1_def": 86, "t2_att": 92, "t2_mid": 88, "t2_def": 89, "result": 2}, # Br vs Fr (Fr Win)
+    {"t1_att": 86, "t1_mid": 88, "t1_def": 84, "t2_att": 87, "t2_mid": 91, "t2_def": 86, "result": 2}, # Ge vs Sp (Sp Win)
+]
+
+df = pd.DataFrame(training_data)
+X_train = df[["t1_att", "t1_mid", "t1_def", "t2_att", "t2_mid", "t2_def"]]
+y_train = df["result"]
+
+# 2. TRAIN THE AI MODEL
+# Random Forest uses an ensemble of decision trees to calculate mathematical probabilities [1]
+ai_model = RandomForestClassifier(n_estimators=100, random_state=42)
+ai_model.fit(X_train, y_train)
+
+# 3. NATION DATABASE FOR TARGET TOURNAMENT
 NATIONS = {
-    "Spain":      {"ATT": 87, "MID": 91, "DEF": 86, "FORM": 1.05},
-    "France":     {"ATT": 92, "MID": 88, "DEF": 89, "FORM": 1.02},
-    "Argentina":  {"ATT": 88, "MID": 86, "DEF": 84, "FORM": 1.00},
-    "England":    {"ATT": 89, "MID": 87, "DEF": 85, "FORM": 0.98},
-    "Germany":    {"ATT": 86, "MID": 88, "DEF": 84, "FORM": 1.01},
-    "Portugal":   {"ATT": 87, "MID": 87, "DEF": 83, "FORM": 1.00},
-    "Brazil":     {"ATT": 88, "MID": 84, "DEF": 86, "FORM": 0.97},
-    "Netherlands":{"ATT": 83, "MID": 85, "DEF": 85, "FORM": 0.99},
+    "Spain":       {"ATT": 87, "MID": 91, "DEF": 86},
+    "France":      {"ATT": 92, "MID": 88, "DEF": 89},
+    "Argentina":   {"ATT": 88, "MID": 86, "DEF": 84},
+    "England":     {"ATT": 89, "MID": 87, "DEF": 85},
+    "Germany":     {"ATT": 86, "MID": 88, "DEF": 84},
+    "Portugal":    {"ATT": 87, "MID": 87, "DEF": 83},
+    "Brazil":      {"ATT": 88, "MID": 84, "DEF": 86},
+    "Netherlands": {"ATT": 83, "MID": 85, "DEF": 85},
 }
 
-def calculate_match_score(team1, team2):
-    """Calculates a realistic match outcome using attributes and RNG."""
-    t1_data = NATIONS[team1]
-    t2_data = NATIONS[team2]
+def ai_predict_match(team1, team2):
+    """Feeds team metrics into the trained AI model to predict a winner."""
+    t1, t2 = NATIONS[team1], NATIONS[team2]
     
-    # Base power score combining midfield control and attacking threat against opponent defense
-    t1_power = ((t1_data["MID"] * 0.6) + (t1_data["ATT"] * 0.4) - (t2_data["DEF"] * 0.3)) * t1_data["FORM"]
-    t2_power = ((t2_data["MID"] * 0.6) + (t2_data["ATT"] * 0.4) - (t1_data["DEF"] * 0.3)) * t2_data["FORM"]
+    # Create the data shape the AI expects
+    match_features = pd.DataFrame([{
+        "t1_att": t1["ATT"], "t1_mid": t1["MID"], "t1_def": t1["DEF"],
+        "t2_att": t2["ATT"], "t2_mid": t2["MID"], "t2_def": t2["DEF"]
+    }])
     
-    # Volatility / Luck factor (Simulates real-world randomness and referee decisions)
-    t1_rng = random.uniform(0.8, 1.3)
-    t2_rng = random.uniform(0.8, 1.3)
+    # AI predicts probabilities for [Draw, Team 1 Win, Team 2 Win]
+    probabilities = ai_model.predict_proba(match_features)[0]
     
-    t1_final = t1_power * t1_rng
-    t2_final = t2_power * t2_rng
+    # Introduce an intelligent random choice based strictly on the AI's calculated probabilities
+    # This ensures heavy favorites usually win, but realistic upsets can still happen
+    outcomes = [f"{team1} (via tiebreaker)", team1, team2]
+    winner = np.random.choice(outcomes, p=probabilities)
     
-    # Convert numerical power scores into soccer goals
-    t1_goals = int(max(0, (t1_final - 40) / 10))
-    t2_goals = int(max(0, (t2_final - 40) / 10))
-    
-    # Resolve Deadlocks for Knockout Matches
-    if t1_goals == t2_goals:
-        # 30% chance a team wins in extra time, otherwise it goes to a penalty shootout coin-flip
-        if random.random() > 0.7:
-            if random.choice([True, False]): t1_goals += 1
-            else: t2_goals += 1
-            return t1_goals, t2_goals, "AET"
-        else:
-            return t1_goals, t2_goals, "PEN"
-            
-    return t1_goals, t2_goals, "FT"
-
-def run_knockout_fixture(team1, team2):
-    """Executes the match and formats the text printout."""
-    g1, g2, condition = calculate_match_score(team1, team2)
-    
-    if condition == "FT":
-        suffix = ""
-    elif condition == "AET":
-        suffix = " (After Extra Time)"
-    else:
-        # Simulate a dramatic penalty shootout score
-        p1, p2 = (5, random.randint(3, 4)) if random.choice([True, False]) else (random.randint(3, 4), 5)
-        suffix = f" (PENS: {p1}-{p2})"
-        
-    winner = team1 if (g1 > g2 or (condition == "PEN" and p1 == 5)) else team2
-    print(f"   {team1} {g1} - {g2} {team2}{suffix}")
+    print(f"   🤖 AI Prediction: {team1} vs {team2} ➔ Winner: {winner}")
     return winner
 
-# 2. RUN THE TOURNAMENT BRACKET
-print("🏆 --- SIMULATED WORLD CUP KNOCKOUTS --- 🏆\n")
+# 4. RUN THE AI TOURNAMENT
+print("🤖 --- AI-POWERED WORLD CUP SIMULATION --- 🤖\n")
 
 print("▶️ QUARTERFINALS:")
-q1_winner = run_knockout_fixture("Argentina", "Portugal")
-q2_winner = run_knockout_fixture("France", "Germany")
-q3_winner = run_knockout_fixture("Spain", "Netherlands")
-q4_winner = run_knockout_fixture("England", "Brazil")
+q1 = ai_predict_match("Argentina", "Portugal")
+q2 = ai_predict_match("France", "Germany")
+q3 = ai_predict_match("Spain", "Netherlands")
+q4 = ai_predict_match("England", "Brazil")
 
 print("\n▶️ SEMIFINALS:")
-sf1_winner = run_knockout_fixture(q1_winner, q2_winner)
-sf2_winner = run_knockout_fixture(q3_winner, q4_winner)
+sf1 = ai_predict_match(q1, q2)
+sf2 = ai_predict_match(q3, q4)
 
 print("\n👑 THE WORLD CUP FINAL:")
-champion = run_knockout_fixture(sf1_winner, sf2_winner)
+champion = ai_predict_match(sf1, sf2)
 
-print(f"\n🎉 {champion.upper()} HAS WON THE WORLD CUP! 🎉")
+print(f"\n🎉 THE AI PREDICTS {champion.upper()} TO WIN THE WORLD CUP! 🎉")
