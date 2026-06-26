@@ -112,12 +112,13 @@ def load_historical_data_pipeline():
         pass
         
     # High-quality structural backup if network requests get throttled
-    backup_data = {
+        backup_data = {
         'home_team': ['Argentina', 'France', 'Brazil', 'England', 'Croatia', 'Morocco', 'Argentina', 'Spain', 'USA', 'Mexico', 'Germany', 'Italy', 'Portugal', 'Netherlands', 'Japan', 'Senegal'],
         'away_team': ['France', 'Brazil', 'England', 'Croatia', 'Morocco', 'Spain', 'Croatia', 'France', 'Mexico', 'Germany', 'Italy', 'USA', 'Netherlands', 'Portugal', 'Senegal', 'Japan'],
         'home_score':,
-        'away_score': [3, 1, 0, 0, 0, 0, 0, 2, 0, 1, 2, 1, 2, 0, 1, 1]
+        'away_score': [3, 0, 0, 2, 0, 0, 0, 1, 1, 1, 2, 2, 0, 1, 2, 0]
     }
+
     return pd.DataFrame(backup_data)
 
 # Instantiate application assets
