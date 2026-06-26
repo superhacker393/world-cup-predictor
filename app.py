@@ -6,8 +6,8 @@ import pandas as pd
 st.set_page_config(page_title="World Cup 48-Team AI Predictor", page_icon="🏆", layout="centered")
 st.title("🏆 World Cup 48-Team Monte Carlo AI Predictor")
 st.write(
-    "This app uses a complete 48-team database, Poisson goal distributions, "
-    "and Monte Carlo simulation models to predict the tournament champion."
+    "This app uses the official 48-team tournament structure (12 Groups of 4 -> Round of 32 Knockout), "
+    "Poisson goal distributions, and Monte Carlo simulations to predict the champion."
 )
 
 # 2. GROUND TRUTH DATABASE (All 48 World Cup Teams)
@@ -64,7 +64,7 @@ TEAM_METRICS = {
 
 # 3. INTERACTIVE SIDEBAR CONTROLS
 st.sidebar.header("🛠️ Simulation Engine Configuration")
-num_simulations = st.sidebar.slider("Number of Tournaments", min_value=100, max_value=5000, value=1000, step=100)
+num_simulations = st.sidebar.slider("Number of Tournaments", min_value=100, max_value=2500, value=500, step=100)
 
 st.sidebar.subheader("Adjust Team Form Modifiers")
 selected_team = st.sidebar.selectbox("Select Team to Modify", list(TEAM_METRICS.keys()))
@@ -76,45 +76,100 @@ st.session_state.modifiers[selected_team] = st.sidebar.slider(
     f"Form Boost for {selected_team}", min_value=0.8, max_value=1.2, value=st.session_state.modifiers[selected_team], step=0.05
 )
 
-# 4. MATH & ENGINE SIMULATION LOGIC
-def simulate_poisson_match(team1, team2):
+# 4. SIMULATION UTILITIES
+def play_match(team1, team2, knockout=False):
+    """Simulates a match using Poisson goal distributions. Returns (goals1, goals2)."""
     t1, t2 = TEAM_METRICS[team1], TEAM_METRICS[team2]
-    
     t1_form = st.session_state.modifiers[team1]
     t2_form = st.session_state.modifiers[team2]
     
-    # Calculate expected goals (xG) based on form adjusted offense vs defense
     t1_xg = max(0.4, (t1["OFFENSE"] * t1_form) * t2["DEFENSE"])
     t2_xg = max(0.4, (t2["OFFENSE"] * t2_form) * t1["DEFENSE"])
     
     g1 = np.random.poisson(t1_xg)
     g2 = np.random.poisson(t2_xg)
     
-    if g1 != g2:
-        return team1 if g1 > g2 else team2
-    
-    # Standard Knockout Tiebreaker using weighted probabilities based on FIFA Points
-    if np.random.rand() < 0.3:
-        return team1 if np.random.rand() > 0.5 else team2
-    else:
-        t1_weight = 0.55 if t1["POINTS"] > t2["POINTS"] else 0.45
-        return team1 if np.random.rand() < t1_weight else team2
+    if g1 == g2 and knockout:
+        # Resolve knockout draw cleanly using historical strength weights
+        if np.random.rand() < 0.3:
+            return (1, 0) if np.random.rand() > 0.5 else (0, 1)
+        else:
+            return (1, 0) if t1["POINTS"] > t2["POINTS"] else (0, 1)
+            
+    return g1, g2
 
 def run_single_tournament():
-    current_round = list(TEAM_METRICS.keys())
-    np.random.shuffle(current_round)
+    # Shuffle all 48 teams and drop them cleanly into 12 groups of 4
+    all_teams = list(TEAM_METRICS.keys())
+    np.random.shuffle(all_teams)
+    groups = [all_teams[i:i + 4] for i in range(0, 48, 4)]
     
+    knockout_pool = []
+    third_place_candidates = []
+    
+    # Simulate Group Stage Round Robin
+    for group in groups:
+        standings = {team: {"points": 0, "gd": 0, "fifa": TEAM_METRICS[team]["POINTS"]} for team in group}
+        
+        # Internal matches inside the group matrices
+        for i in range(4):
+            for j in range(i + 1, 4):
+                tm1, tm2 = group[i], group[j]
+                g1, g2 = play_match(tm1, tm2, knockout=False)
+                
+                standings[tm1]["gd"] += (g1 - g2)
+                standings[tm2]["gd"] += (g2 - g1)
+                
+                if g1 > g2:
+                    standings[tm1]["points"] += 3
+                elif g2 > g1:
+                    standings[tm2]["points"] += 3
+                else:
+                    standings[tm1]["points"] += 1
+                    standings[tm2]["points"] += 1
+                    
+        # Sort standings based on Points -> Goal Difference -> Base FIFA Strength Points
+        sorted_teams = sorted(
+            group, 
+            key=lambda x: (standings[x]["points"], standings[x]["gd"], standings[x]["fifa"]), 
+            reverse=True
+        )
+        
+        # Top 2 teams advance automatically to the next round
+        knockout_pool.append(sorted_teams[0])
+        knockout_pool.append(sorted_teams[1])
+        
+        # Save 3rd place teams for comparison wildcards
+        third_place_candidates.append({
+            "name": sorted_teams[2], 
+            "points": standings[sorted_teams[2]]["points"], 
+            "gd": standings[sorted_teams[2]]["gd"],
+            "fifa": standings[sorted_teams[2]]["fifa"]
+        })
+        
+    # Select the 8 best 3rd-place teams to fill out the remaining bracket slots
+    sorted_thirds = sorted(
+        third_place_candidates, 
+        key=lambda x: (x["points"], x["gd"], x["fifa"]), 
+        reverse=True
+    )
+    for k in range(8):
+        knockout_pool.append(sorted_thirds[k]["name"])
+        
+    # Shuffle knockout pool to ensure randomized paths down the bracket lines
+    np.random.shuffle(knockout_pool)
+    
+    # Execute Knockout stage rounds ($32 \rightarrow 16 \rightarrow 8 \rightarrow 4 \rightarrow 2 \rightarrow 1$)
+    current_round = knockout_pool
     while len(current_round) > 1:
         next_round = []
         for i in range(0, len(current_round), 2):
-            if i + 1 < len(current_round):
-                winner = simulate_poisson_match(current_round[i], current_round[i+1])
-                next_round.append(winner)
-            else:
-                next_round.append(current_round[i])
+            g1, g2 = play_match(current_round[i], current_round[i+1], knockout=True)
+            winner = current_round[i] if g1 > g2 else current_round[i+1]
+            next_round.append(winner)
         current_round = next_round
         
-    return current_round[0]  # ✅ FIX 1: Extracted item out of the list container to return a clean String
+    return current_round[0] # Returns a perfect, raw string team name directly
 
 # 5. EXECUTION CORE RUNNER
 if st.button("🚀 Run AI Tournament Simulation"):
@@ -135,19 +190,17 @@ if st.button("🚀 Run AI Tournament Simulation"):
     progress_bar.empty()
     status_text.empty()
     
+    # Format and present calculations
     results_df = pd.DataFrame(list(championship_counts.items()), columns=["Country", "Simulated Wins"])
     results_df["Win Probability"] = (results_df["Simulated Wins"] / num_simulations) * 100
     results_df = results_df.sort_values(by="Win Probability", ascending=False).reset_index(drop=True)
     
-    # 6. RESULTS LAYOUT RENDERING
     st.subheader("📊 Mathematical Probability Results")
-    
     st.dataframe(
         results_df[results_df["Simulated Wins"] > 0].style.format({"Win Probability": "{:.2f}%"}), 
         use_container_width=True
     )
     
-    # ✅ FIX 2: Fixed indexing method from text string lookup inside numeric array positions
     top_team = results_df.at[0, "Country"]
     top_prob = results_df.at[0, "Win Probability"]
     
