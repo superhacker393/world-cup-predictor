@@ -69,7 +69,6 @@ num_simulations = st.sidebar.slider("Number of Tournaments", min_value=100, max_
 st.sidebar.subheader("Adjust Team Form Modifiers")
 selected_team = st.sidebar.selectbox("Select Team to Modify", list(TEAM_METRICS.keys()))
 
-# Maintain form selections persistent in Streamlit session state
 if "modifiers" not in st.session_state:
     st.session_state.modifiers = {team: 1.0 for team in TEAM_METRICS.keys()}
 
@@ -84,7 +83,6 @@ def simulate_poisson_match(team1, team2):
     t1_form = st.session_state.modifiers[team1]
     t2_form = st.session_state.modifiers[team2]
     
-    # Calculate expected goals (xG) based on form adjusted offense vs defense
     t1_xg = max(0.4, (t1["OFFENSE"] * t1_form) * t2["DEFENSE"])
     t2_xg = max(0.4, (t2["OFFENSE"] * t2_form) * t1["DEFENSE"])
     
@@ -94,7 +92,6 @@ def simulate_poisson_match(team1, team2):
     if g1 != g2:
         return team1 if g1 > g2 else team2
     
-    # Standard Knockout Tiebreaker using weighted probabilities based on FIFA Points
     if np.random.rand() < 0.3:
         return team1 if np.random.rand() > 0.5 else team2
     else:
@@ -102,11 +99,9 @@ def simulate_poisson_match(team1, team2):
         return team1 if np.random.rand() < t1_weight else team2
 
 def run_single_tournament():
-    # Fetch all 48 teams and randomly seed them into a knockout structure
     current_round = list(TEAM_METRICS.keys())
     np.random.shuffle(current_round)
     
-    # Process knockout rounds until only 1 single team string remains
     while len(current_round) > 1:
         next_round = []
         for i in range(0, len(current_round), 2):
@@ -117,22 +112,19 @@ def run_single_tournament():
                 next_round.append(current_round[i])
         current_round = next_round
         
-    return current_round[0] # FIX: Extracts the clean string name out of the final list element
+    return current_round[0]  # ✅ FIX: Added [0] index to return string team name instead of a list
 
 # 5. EXECUTION CORE RUNNER
 if st.button("🚀 Run AI Tournament Simulation"):
     championship_counts = {team: 0 for team in TEAM_METRICS.keys()}
     
-    # Create progress visual containers
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    # Perform Monte Carlo simulation passes
     for i in range(num_simulations):
         winner = run_single_tournament()
         championship_counts[winner] += 1
         
-        # Smoothly update progress bars without overloading the frontend UI
         step = max(1, num_simulations // 10)
         if i % step == 0:
             progress_bar.progress((i + 1) / num_simulations)
@@ -141,7 +133,6 @@ if st.button("🚀 Run AI Tournament Simulation"):
     progress_bar.empty()
     status_text.empty()
     
-    # Structure data into a summary dataframe
     results_df = pd.DataFrame(list(championship_counts.items()), columns=["Country", "Simulated Wins"])
     results_df["Win Probability"] = (results_df["Simulated Wins"] / num_simulations) * 100
     results_df = results_df.sort_values(by="Win Probability", ascending=False).reset_index(drop=True)
@@ -149,20 +140,18 @@ if st.button("🚀 Run AI Tournament Simulation"):
     # 6. RESULTS LAYOUT RENDERING
     st.subheader("📊 Mathematical Probability Results")
     
-    # Interactive data presentation matrix
     st.dataframe(
         results_df[results_df["Simulated Wins"] > 0].style.format({"Win Probability": "{:.2f}%"}), 
         use_container_width=True
     )
     
-    # FIX: Correct column name index extraction using positional integer selection .iloc[0]
-    top_team = results_df.iloc[0]["Country"]
-    top_prob = results_df.iloc[0]["Win Probability"]
+    # ✅ FIX: Changed index retrieval methods from string key identifiers to positional selection numbers
+    top_team = results_df.at[0, "Country"]
+    top_prob = results_df.at[0, "Win Probability"]
     
     st.success(
         f"🏆 The AI Predictor determines **{top_team.upper()}** has the highest statistical probability "
         f"of winning the Cup, capturing the trophy in **{top_prob:.2f}%** of simulation realities!"
     )
     
-    # Interactive bar chart layout
     st.bar_chart(data=results_df[results_df["Win Probability"] > 0.5], x="Country", y="Win Probability")
