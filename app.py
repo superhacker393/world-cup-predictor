@@ -83,6 +83,7 @@ def simulate_poisson_match(team1, team2):
     t1_form = st.session_state.modifiers[team1]
     t2_form = st.session_state.modifiers[team2]
     
+    # Calculate expected goals (xG) based on form adjusted offense vs defense
     t1_xg = max(0.4, (t1["OFFENSE"] * t1_form) * t2["DEFENSE"])
     t2_xg = max(0.4, (t2["OFFENSE"] * t2_form) * t1["DEFENSE"])
     
@@ -92,6 +93,7 @@ def simulate_poisson_match(team1, team2):
     if g1 != g2:
         return team1 if g1 > g2 else team2
     
+    # Standard Knockout Tiebreaker using weighted probabilities based on FIFA Points
     if np.random.rand() < 0.3:
         return team1 if np.random.rand() > 0.5 else team2
     else:
@@ -112,7 +114,7 @@ def run_single_tournament():
                 next_round.append(current_round[i])
         current_round = next_round
         
-    return current_round[0]  # ✅ FIX: Added [0] index to return string team name instead of a list
+    return current_round[0]  # ✅ FIX 1: Extracted item out of the list container to return a clean String
 
 # 5. EXECUTION CORE RUNNER
 if st.button("🚀 Run AI Tournament Simulation"):
@@ -145,7 +147,7 @@ if st.button("🚀 Run AI Tournament Simulation"):
         use_container_width=True
     )
     
-    # ✅ FIX: Changed index retrieval methods from string key identifiers to positional selection numbers
+    # ✅ FIX 2: Fixed indexing method from text string lookup inside numeric array positions
     top_team = results_df.at[0, "Country"]
     top_prob = results_df.at[0, "Win Probability"]
     
