@@ -287,8 +287,14 @@ with tab_sim:
 
     col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
     with col_ctrl1:
-        n_sims = st.slider("Simulations", 1_000, 50_000, 10_000, step=1_000,
-                           help="More simulations = tighter probability estimates.")
+        n_sims = st.slider(
+    "Simulations",
+    min_value=1_000,
+    max_value=5_000_000,
+    value=100_000,
+    step=100_000,
+    help="5 million simulations may take several minutes."
+)
     with col_ctrl2:
         home_adv = st.slider("Host-nation advantage", 0.0, 0.6, 0.30, step=0.05,
                              help="Goal-rate boost for USA, Mexico, Canada when playing at home.")
