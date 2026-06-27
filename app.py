@@ -303,7 +303,7 @@ with tab_sim:
     "Random seed (0 = random)",
     value=0,
     step=1
-
+        )
                                help="Fix the seed for reproducible results.")
 
     if st.button("▶  Run simulation", type="primary", use_container_width=True):
