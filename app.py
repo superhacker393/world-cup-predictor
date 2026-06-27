@@ -25,7 +25,7 @@ TEAM_TO_IDX = {team: i for i, team in enumerate(TEAMS)}
 
 ALL_PLAYERS = []
 PLAYER_TO_IDX = {}
-player_team_mask = [] # Tracks which team each player belongs to
+player_team_mask = [] 
 
 for t_idx, team in enumerate(TEAMS):
     for p_name in TEAM_METRICS[team]["PLAYERS"]:
@@ -43,12 +43,11 @@ num_simulations = st.sidebar.slider("Number of Tournaments to Simulate", min_val
 st.sidebar.subheader("Adjust Team Form Modifiers")
 form_modifiers = {}
 for team in TEAMS:
-    form_modifiers[team] = st.sidebar.slider(f"{team} Form Boost", min_value=0.8, max_value=1.2, value=1.0, step=0.05)
+    # Changed min_value to 0.1, max_value to 3.0, and step to 0.1 for high-impact boosts
+    form_modifiers[team] = st.sidebar.slider(f"{team} Form Boost", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
 
 # 3. VECTORIZED SIMULATION ENGINE
 def simulate_vector_match(team1_ids, team2_ids, player_goals, N):
-    """Simulates N matches simultaneously using vectorized array operations"""
-    # Fetch team stats based on current match setups
     t1_off = np.array([TEAM_METRICS[TEAMS[i]]["OFFENSE"] * form_modifiers[TEAMS[i]] for i in team1_ids])
     t2_def = np.array([TEAM_METRICS[TEAMS[i]]["DEFENSE"] for i in team2_ids])
     t2_off = np.array([TEAM_METRICS[TEAMS[i]]["OFFENSE"] * form_modifiers[TEAMS[i]] for i in team2_ids])
@@ -57,29 +56,26 @@ def simulate_vector_match(team1_ids, team2_ids, player_goals, N):
     t1_xg = np.maximum(0.5, t1_off * t2_def)
     t2_xg = np.maximum(0.5, t2_off * t1_def)
     
-    # Generate all goals for all N matches instantly
     g1 = np.random.poisson(t1_xg)
     g2 = np.random.poisson(t2_xg)
     
-    # Fast player goal distribution
     for i in range(N):
         idx1, idx2 = team1_ids[i], team2_ids[i]
         
         if g1[i] > 0:
-            p_indices = np.where(player_team_mask == idx1)[0]
+            p_indices = np.where(player_team_mask == idx1)
             weights = TEAM_METRICS[TEAMS[idx1]]["PLAYER_WEIGHTS"]
             chosen = np.random.choice(p_indices, size=g1[i], p=weights)
             for cp in chosen:
                 player_goals[i, cp] += 1
                 
         if g2[i] > 0:
-            p_indices = np.where(player_team_mask == idx2)[0]
+            p_indices = np.where(player_team_mask == idx2)
             weights = TEAM_METRICS[TEAMS[idx2]]["PLAYER_WEIGHTS"]
             chosen = np.random.choice(p_indices, size=g2[i], p=weights)
             for cp in chosen:
                 player_goals[i, cp] += 1
 
-    # Resolve winners and handle tie-breaking rules
     winners = np.where(g1 > g2, team1_ids, team2_ids)
     ties = (g1 == g2)
     if np.any(ties):
@@ -96,7 +92,6 @@ def simulate_vector_match(team1_ids, team2_ids, player_goals, N):
 # 4. EXECUTION TRIGGER
 if st.button("🚀 Run AI Tournament Simulation"):
     with st.spinner(f"Processing {num_simulations:,} parallel universes..."):
-        # Matrix to hold player goals: [Simulation Index, Player Index]
         player_goals = np.zeros((num_simulations, num_players), dtype=np.int32)
         
         # Quarterfinals
@@ -134,21 +129,14 @@ if st.button("🚀 Run AI Tournament Simulation"):
         results_df = results_df.sort_values(by="Win Probability", ascending=False).reset_index(drop=True)
 
         # --- PROCESS GOLDEN BOOT RESULTS ---
-        # Find maximum goals scored per simulation universe
         max_goals_per_sim = np.max(player_goals, axis=1, keepdims=True)
-        
-        # Prevent division by zero if an entire tournament goes goalless
         max_goals_per_sim = np.where(max_goals_per_sim == 0, 1, max_goals_per_sim) 
         
-        # Boolean matrix of who matched the maximum goals in each simulation run
         is_top_scorer = (player_goals == max_goals_per_sim) & (player_goals > 0)
-        
-        # Handle sharing metrics proportionally for ties
         scorers_per_sim = np.sum(is_top_scorer, axis=1, keepdims=True)
         scorers_per_sim = np.where(scorers_per_sim == 0, 1, scorers_per_sim)
         boot_shares = is_top_scorer / scorers_per_sim
         
-        # Aggregate totals across all simulation lines
         total_boot_wins = np.sum(boot_shares, axis=0)
         
         boot_df = pd.DataFrame({
@@ -158,7 +146,6 @@ if st.button("🚀 Run AI Tournament Simulation"):
         boot_df["Golden Boot Probability"] = (boot_df["Boot Wins"] / num_simulations) * 100
         boot_df = boot_df.sort_values(by="Golden Boot Probability", ascending=False).reset_index(drop=True)
         
-        # Filter out generic squad markers from final display
         player_boot_df = boot_df[~boot_df["Player"].str.contains("Squad Goal")].reset_index(drop=True)
 
     # --- DISPLAY UI RESULTS ---
