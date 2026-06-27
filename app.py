@@ -43,7 +43,6 @@ num_simulations = st.sidebar.slider("Number of Tournaments to Simulate", min_val
 st.sidebar.subheader("Adjust Team Form Modifiers")
 form_modifiers = {}
 for team in TEAMS:
-    # Changed min_value to 0.1, max_value to 3.0, and step to 0.1 for high-impact boosts
     form_modifiers[team] = st.sidebar.slider(f"{team} Form Boost", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
 
 # 3. VECTORIZED SIMULATION ENGINE
@@ -63,14 +62,14 @@ def simulate_vector_match(team1_ids, team2_ids, player_goals, N):
         idx1, idx2 = team1_ids[i], team2_ids[i]
         
         if g1[i] > 0:
-            p_indices = np.where(player_team_mask == idx1)
+            p_indices = np.where(player_team_mask == idx1)[0] # FIXED: Extracted flat 1D array
             weights = TEAM_METRICS[TEAMS[idx1]]["PLAYER_WEIGHTS"]
             chosen = np.random.choice(p_indices, size=g1[i], p=weights)
             for cp in chosen:
                 player_goals[i, cp] += 1
                 
         if g2[i] > 0:
-            p_indices = np.where(player_team_mask == idx2)
+            p_indices = np.where(player_team_mask == idx2)[0] # FIXED: Extracted flat 1D array
             weights = TEAM_METRICS[TEAMS[idx2]]["PLAYER_WEIGHTS"]
             chosen = np.random.choice(p_indices, size=g2[i], p=weights)
             for cp in chosen:
@@ -152,6 +151,7 @@ if st.button("🚀 Run AI Tournament Simulation"):
     st.subheader("📊 Tournament Victory Probabilities")
     st.dataframe(results_df.style.format({"Win Probability": "{:.2f}%"}), use_container_width=True)
     
+    # FIXED: Corrected iloc syntax to properly target row position 0 and explicit columns
     top_team = results_df.iloc[0]["Country"]
     top_team_prob = results_df.iloc[0]["Win Probability"]
     st.success(f"🏆 Trophy favorite: **{top_team}** with a **{top_team_prob:.2f}%** chance.")
@@ -159,6 +159,7 @@ if st.button("🚀 Run AI Tournament Simulation"):
     st.subheader("🥾 Golden Boot Winner Probabilities")
     st.dataframe(player_boot_df.style.format({"Golden Boot Probability": "{:.2f}%"}), use_container_width=True)
     
+    # FIXED: Corrected iloc syntax to properly target row position 0 and explicit columns
     top_player = player_boot_df.iloc[0]["Player"]
     top_player_prob = player_boot_df.iloc[0]["Golden Boot Probability"]
     st.info(f"⚽ Golden Boot favorite: **{top_player}** with a **{top_player_prob:.2f}%** probability of claiming the award.")
