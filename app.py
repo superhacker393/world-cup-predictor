@@ -205,21 +205,27 @@ if st.button("🚀 Execute High-Fidelity Simulation"):
         
         player_boot_df = boot_df[~boot_df["Player"].str.contains("Squad Goal")].reset_index(drop=True)
 
-    # --- DISPLAY UI RESULTS ---
+        # Save to Session State (THIS FIXES YOUR CRASH)
+        st.session_state['results_df'] = results_df
+        st.session_state['player_boot_df'] = player_boot_df
+
+# --- DISPLAY UI RESULTS FROM SESSION STATE ---
+if 'results_df' in st.session_state:
+    results_df = st.session_state['results_df']
+    player_boot_df = st.session_state['player_boot_df']
+
     st.subheader("📊 High-Accuracy Victory Probabilities")
     st.dataframe(results_df.style.format({"Win Probability": "{:.2f}%"}), use_container_width=True)
     
-    top_team = results_df.loc[0, "Country"]
-    top_team_prob = results_df.loc[0, "Win Probability"]
-    st.success(f"🏆 Trophy favorite: {top_team} with a {top_team_prob:.2f}% chance.")
+    top_team = results_df.iloc[0]["Country"]
+    top_team_prob = results_df.iloc[0]["Win Probability"]
+    st.success(f"🏆 Trophy favorite: **{top_team}** with a **{top_team_prob:.2f}%** chance.")
 
-st.subheader("🥾 Golden Boot Winner Probabilities")
-
-st.dataframe(player_boot_df.style.format({"Golden Boot Probability": "{:.2f}%"}), use_container_width=True)
-
-top_player = player_boot_df.loc[0, "Player"]
-top_player_prob = player_boot_df.loc[0, "Golden Boot Probability"]
-
-st.info(f"⚽ Golden Boot favorite: {top_player} with a {top_player_prob:.2f}% probability of claiming the award.")
-
-st.bar_chart(data=player_boot_df.head(10), x="Player", y="Golden Boot Probability")
+    st.subheader("🥾 Golden Boot Winner Probabilities")
+    st.dataframe(player_boot_df.style.format({"Golden Boot Probability": "{:.2f}%"}), use_container_width=True)
+    
+    top_player = player_boot_df.iloc[0]["Player"]
+    top_player_prob = player_boot_df.iloc[0]["Golden Boot Probability"]
+    st.info(f"⚽ Golden Boot favorite: **{top_player}** with a **{top_player_prob:.2f}%** probability of claiming the award.")
+    
+    st.bar_chart(data=player_boot_df.head(10), x="Player", y="Golden Boot Probability")
