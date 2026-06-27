@@ -1,4 +1,4 @@
-import streamlit as st5
+import streamlit as st
 import numpy as np
 import pandas as pd
 from scipy.stats import poisson as scipy_poisson
@@ -46,12 +46,6 @@ st.set_page_config(
 )
 
 # ── Team database ──────────────────────────────────────────────────────────────
-# Attack (λ) and defense ratings derived from World Football Elo ratings
-# and group-stage performance at WC 2026.
-# atk  = expected goals scored vs average opponent
-# def_ = multiplier on opponent attack (lower = better defense)
-# elo  = approximate World Football Elo rating
-
 TEAMS = {
     "France":       {"flag": "🇫🇷", "atk": 2.05, "def": 0.72, "elo": 2100},
     "Argentina":    {"flag": "🇦🇷", "atk": 2.00, "def": 0.78, "elo": 2060},
@@ -88,9 +82,7 @@ TEAMS = {
 }
 
 # ── Round of 32 bracket ────────────────────────────────────────────────────────
-# Real 2026 WC R32 fixtures. "TBD" = opponent not yet confirmed at build time.
 R32_BRACKET = [
-    # (home, away, date)  — fed into the simulator in bracket order
     ("South Africa", "Canada",      "Jun 28"),
     ("Brazil",       "Japan",       "Jun 29"),
     ("Morocco",      "Netherlands", "Jun 29"),
@@ -109,23 +101,15 @@ R32_BRACKET = [
     ("Germany",      "Paraguay",    "Jul 4"),
 ]
 
-# Host nations get a crowd/environment advantage
 HOST_NATIONS = {"USA", "Mexico", "Canada"}
 
 # ── Poisson match engine ───────────────────────────────────────────────────────
 
 def get_team(name: str) -> dict:
-    """Return team stats, falling back to a weak default for TBD slots."""
     return TEAMS.get(name, {"flag": "🏳️", "atk": 1.25, "def": 0.91, "elo": 1650})
 
 
 def expected_goals(team_a: str, team_b: str, home_adv: float) -> tuple[float, float]:
-    """
-    xG for team_a and team_b.
-    xG_A = atk_A × def_B × (1 + home_adv if A is a host nation)
-    xG_B = atk_B × def_A  (neutral venue for both in knockout stage,
-                            unless a host nation plays at home)
-    """
     ta, tb = get_team(team_a), get_team(team_b)
     boost_a = home_adv if team_a in HOST_NATIONS else 0.0
     boost_b = home_adv if team_b in HOST_NATIONS else 0.0
@@ -135,21 +119,16 @@ def expected_goals(team_a: str, team_b: str, home_adv: float) -> tuple[float, fl
 
 
 def simulate_match(team_a: str, team_b: str, home_adv: float) -> tuple[str, int, int]:
-    """
-    Simulate one knockout match using Poisson goal draws.
-    Draws → extra time (33 % xG) → penalty shootout (50/50).
-    Returns (winner, goals_a, goals_b).
-    """
     xg_a, xg_b = expected_goals(team_a, team_b, home_adv)
     goals_a = np.random.poisson(xg_a)
     goals_b = np.random.poisson(xg_b)
 
-    if goals_a == goals_b:                              # Extra time
+    if goals_a == goals_b:
         et_a = np.random.poisson(xg_a * 0.33)
         et_b = np.random.poisson(xg_b * 0.33)
         goals_a += et_a
         goals_b += et_b
-        if goals_a == goals_b:                          # Penalties
+        if goals_a == goals_b:
             winner = team_a if random.random() < 0.5 else team_b
             return winner, goals_a, goals_b
 
@@ -158,16 +137,14 @@ def simulate_match(team_a: str, team_b: str, home_adv: float) -> tuple[str, int,
 
 
 def simulate_tournament(home_adv: float) -> str:
-    """Simulate the full bracket from R32 to Final, return winner name."""
     survivors = []
     for home, away, _ in R32_BRACKET:
         if away == "TBD":
-            survivors.append(home)          # Give bye to confirmed team
+            survivors.append(home)
         else:
             winner, _, _ = simulate_match(home, away, home_adv)
             survivors.append(winner)
 
-    # Single-elimination rounds until one team remains
     while len(survivors) > 1:
         next_round = []
         for i in range(0, len(survivors), 2):
@@ -183,9 +160,9 @@ def simulate_tournament(home_adv: float) -> str:
 
 @st.cache_data(show_spinner=False)
 def run_simulations(n: int, home_adv: float, seed: int) -> dict:
-    """Run N tournament simulations, return win-count dict."""
     np.random.seed(seed)
     random.seed(seed)
+
     counts: dict[str, int] = {}
     for _ in range(n):
         w = simulate_tournament(home_adv)
@@ -196,7 +173,6 @@ def run_simulations(n: int, home_adv: float, seed: int) -> dict:
 # ── Head-to-head win probability ───────────────────────────────────────────────
 
 def h2h_win_prob(team_a: str, team_b: str, home_adv: float, n: int = 20_000) -> dict:
-    """Simulate N matches between two teams, return probability dict."""
     results = {"team_a": 0, "team_b": 0, "draw_90": 0}
     xg_a, xg_b = expected_goals(team_a, team_b, home_adv)
     for _ in range(n):
@@ -239,37 +215,20 @@ with st.sidebar:
         value=False
     )
 
-
     if use_api:
 
         if api_key:
 
-            with st.spinner(
-                "Connecting to API..."
-            ):
-
-                api_test = fetch_live_data(
-                    api_key
-                )
-
+            with st.spinner("Connecting to API..."):
+                api_test = fetch_live_data(api_key)
 
             if api_test:
-
-                st.success(
-                    "✅ API connected"
-                )
-
+                st.success("✅ API connected")
             else:
-
-                st.warning(
-                    "⚠️ API connection failed. Using local ratings."
-                )
+                st.warning("⚠️ API connection failed. Using local ratings.")
 
         else:
-
-            st.warning(
-                "Enter an API key"
-            )
+            st.warning("Enter an API key")
 
 
 tab_sim, tab_h2h, tab_bracket, tab_model = st.tabs([
@@ -288,27 +247,28 @@ with tab_sim:
     col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
     with col_ctrl1:
         n_sims = st.slider(
-    "Simulations",
-    min_value=1_000,
-    max_value=5_000_000,
-    value=100_000,
-    step=100_000,
-    help="5 million simulations may take several minutes."
-)
+            "Simulations",
+            min_value=1_000,
+            max_value=5_000_000,
+            value=100_000,
+            step=100_000,
+            help="5 million simulations may take several minutes."
+        )
     with col_ctrl2:
         home_adv = st.slider("Host-nation advantage", 0.0, 0.6, 0.30, step=0.05,
                              help="Goal-rate boost for USA, Mexico, Canada when playing at home.")
     with col_ctrl3:
         seed = st.number_input(
-    "Random seed (0 = random)",
-    value=0,
-    step=1
+            "Random seed (0 = random)",
+            value=0,
+            step=1,
+            help="Fix the seed for reproducible results."
         )
-    help=("Fix the seed for reproducible results.")
 
     if st.button("▶  Run simulation", type="primary", use_container_width=True):
+        actual_seed = int(seed) if int(seed) != 0 else random.randint(1, 10_000_000)
         with st.spinner(f"Simulating {n_sims:,} tournaments…"):
-            counts = run_simulations(n_sims, home_adv, int(seed))
+            counts = run_simulations(n_sims, home_adv, actual_seed)
 
         results = [
             {
@@ -327,7 +287,6 @@ with tab_sim:
         )
         df.insert(0, "Rank", df.index + 1)
 
-        # ── Hero metric ────────────────────────────────────────────────────────
         top = df.iloc[0]
         runner = df.iloc[1]
         st.success(
@@ -447,28 +406,14 @@ with tab_bracket:
 # ────────────────────────────────────────────────────────────────
 # TAB 4 — Model explainer
 # ────────────────────────────────────────────────────────────────
-# ────────────────────────────────────────────────────────────────
-# TAB 4 — Model explainer
-# ────────────────────────────────────────────────────────────────
 with tab_model:
 
-    # ── API status display ─────────────────────────────────────────
-
     if use_api and api_key:
-
-        st.success(
-            "🟢 Live API mode enabled. API connection has been verified."
-        )
-
+        st.success("🟢 Live API mode enabled. API connection has been verified.")
     else:
-
-        st.info(
-            "🔵 Using built-in team ratings. Add an API key in the sidebar to enable API connection."
-        )
-
+        st.info("🔵 Using built-in team ratings. Add an API key in the sidebar to enable API connection.")
 
     st.subheader("How the model works")
-
 
     with st.expander("Poisson goal model", expanded=True):
         st.markdown("""
