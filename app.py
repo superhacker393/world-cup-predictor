@@ -299,7 +299,11 @@ with tab_sim:
         home_adv = st.slider("Host-nation advantage", 0.0, 0.6, 0.30, step=0.05,
                              help="Goal-rate boost for USA, Mexico, Canada when playing at home.")
     with col_ctrl3:
-        seed = st.number_input("Random seed", value=42, step=1,
+        seed = st.number_input(
+    "Random seed (0 = random)",
+    value=0,
+    step=1
+
                                help="Fix the seed for reproducible results.")
 
     if st.button("▶  Run simulation", type="primary", use_container_width=True):
