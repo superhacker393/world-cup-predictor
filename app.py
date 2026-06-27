@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st5
 import numpy as np
 import pandas as pd
 from scipy.stats import poisson as scipy_poisson
@@ -304,7 +304,7 @@ with tab_sim:
     value=0,
     step=1
         )
-                               help="Fix the seed for reproducible results.")
+                            help="Fix the seed for reproducible results.")
 
     if st.button("▶  Run simulation", type="primary", use_container_width=True):
         with st.spinner(f"Simulating {n_sims:,} tournaments…"):
