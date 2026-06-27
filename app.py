@@ -8,7 +8,7 @@ from collections import defaultdict
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="2026 World Cup Simulator",
+    page_title="2026 World Cup Pro AI Simulator",
     page_icon="🏆",
     layout="wide",
 )
