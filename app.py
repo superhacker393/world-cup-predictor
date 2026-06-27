@@ -376,7 +376,19 @@ with tab_sim:
         teams   = st.session_state["live_teams"]
 
         # cache-bust keys so new live data forces a re-run
-        b_key = str(sorted([(h, a) for h, a, _ in bracket]))
+        def safe_unpack(item):
+    # Checks if the item is a collection (like a list/tuple) and has at least 3 elements
+    if isinstance(item, (list, tuple)) and len(item) >= 3:
+        return (item[0], item[1])
+    return None
+
+# Filter out anything that couldn't be unpacked cleanly
+unpacked_items = [safe_unpack(item) for item in bracket]
+filtered_items = [x for x in unpacked_items if x is not None]
+
+# Your original variable assignment, now safe from crashing
+b_key = str(sorted(filtered_items))
+
         r_key = str(sorted([(k, v["atk"], v["def"]) for k, v in teams.items()]))
 
         with st.spinner(f"Simulating {n_sims:,} tournaments…"):
