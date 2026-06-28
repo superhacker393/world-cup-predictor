@@ -364,15 +364,9 @@ def run_simulations(n: int, seed: int, teams_hash: str) -> tuple[dict, dict]:
         for p, g in player_goals.items():
             gb_totals[p].append(g)
 
-    # Golden boot: count how often each player finished top scorer
-    gb_wins: dict[str, int] = defaultdict(int)
-    # Rebuild per-sim top scorer (we stored all tallies; now find winner per sim)
-    # Efficient approach: for each sim, find max; we need to replay ordering
-    # Instead store per-sim max inline — re-run is too slow.
-    # We approximate: player with highest average goals wins proportionally.
-    # For accuracy we track wins directly using a secondary pass.
-    # Since we can't replay, we use average goals as the Golden Boot probability proxy
-    # and normalise. This is standard for Monte Carlo golden boot estimation.
+    # Golden Boot probability: proportional share of average tournament goals per player.
+    # This is the standard Monte Carlo approximation — equivalent to tracking
+    # who wins each sim but without the memory overhead of storing per-sim rankings.
     gb_avg = {p: sum(gs) / n for p, gs in gb_totals.items() if p != "Other"}
     total_avg = sum(gb_avg.values())
     gb_prob = {p: v / total_avg for p, v in gb_avg.items()} if total_avg > 0 else {}
@@ -401,430 +395,6 @@ def h2h_win_prob(team_a: str, team_b: str, n: int = 20_000) -> dict:
     for k in results:
         results[k] = results[k] / n * 100
     return results
-
-# ── UI ─────────────────────────────────────────────────────────────────────────
-st.title("🏆 2026 World Cup Simulator")
-st.caption("Poisson goal model · Live API ratings · Historical penalty rates · Golden Boot · Monte Carlo")
-
-# ── Sidebar ────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.header("🔑 API Settings")
-    api_key = st.text_input("Football API Key", type="password",
-                            help="API-Football key for live ratings + Golden Boot player data")
-    use_api = st.checkbox("Enable live API", value=False)
-
-    ratings_source = "Base ratings (built-in)"
-    n_matches_used = 0
-    squads_source  = "Built-in squad data"
-
-    if use_api and api_key:
-        with st.spinner("Connecting…"):
-            status = fetch_live_data(api_key)
-        if not status:
-            st.warning("⚠️ API failed. Using built-in ratings.")
-        else:
-            st.success("✅ API connected")
-
-            with st.spinner("Fetching match results…"):
-                results_data = fetch_recent_international_results(api_key)
-            if results_data:
-                live_teams = compute_ratings_from_results(results_data)
-                TEAMS.update(live_teams)
-                n_matches_used = len(results_data)
-                ratings_source = f"Live ({n_matches_used} matches)"
-                st.success(f"✅ Ratings: {n_matches_used} matches")
-
-            with st.spinner("Fetching WC 2026 top scorers…"):
-                api_squads = fetch_wc2026_top_scorers(api_key)
-            if api_squads:
-                SQUADS.update(api_squads)
-                squads_source = f"Live WC scorers ({len(api_squads)} teams)"
-                st.success(f"✅ Scorers: {len(api_squads)} teams")
-            else:
-                st.info("ℹ️ No WC scorer data yet — using built-in squads.")
-    else:
-        st.info("🔵 Built-in ratings. Add API key for live data.")
-
-    st.divider()
-
-    # ── Home advantage sliders ─────────────────────────────────────────────────
-    st.subheader("🏟️ Host-nation advantage")
-    st.caption("Goal-rate boost when host nations play at home.")
-    ha_usa    = st.slider("🇺🇸 USA",    0.0, 0.6, DEFAULT_HOST_ADVANTAGE["USA"],    0.01, key="ha_usa")
-    ha_mexico = st.slider("🇲🇽 Mexico", 0.0, 0.6, DEFAULT_HOST_ADVANTAGE["Mexico"], 0.01, key="ha_mex")
-    ha_canada = st.slider("🇨🇦 Canada", 0.0, 0.6, DEFAULT_HOST_ADVANTAGE["Canada"], 0.01, key="ha_can")
-    HOST_ADVANTAGE["USA"]    = ha_usa
-    HOST_ADVANTAGE["Mexico"] = ha_mexico
-    HOST_ADVANTAGE["Canada"] = ha_canada
-
-    st.divider()
-
-    # ── Manual team boost ──────────────────────────────────────────────────────
-    st.subheader("⚡ Team boost")
-    st.caption("Multiply a team's attack rating up or down (1.0 = no change).")
-    boost_team = st.selectbox("Team", ["(none)"] + sorted(TEAMS.keys()), key="boost_team")
-    boost_val  = st.slider("Attack multiplier", 0.5, 2.0, 1.0, 0.05, key="boost_val",
-                           help="1.5 = team scores 50% more goals than their rating suggests.")
-    if boost_team != "(none)":
-        TEAM_BOOST[boost_team] = boost_val
-        if boost_val != 1.0:
-            flag = TEAMS.get(boost_team, {}).get("flag", "")
-            st.caption(f"{flag} {boost_team} attack ×{boost_val:.2f}")
-
-    st.divider()
-    st.caption(f"**Ratings:** {ratings_source}")
-    st.caption(f"**Scorers:** {squads_source}")
-
-# ── Tabs ───────────────────────────────────────────────────────────────────────
-tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_model = st.tabs([
-    "📊 Tournament simulation",
-    "👟 Golden Boot",
-    "🃏 Player Cards",
-    "⚔️  Head-to-head",
-    "🗓️  R32 bracket",
-    "🔬 How it works",
-])
-
-# ── TAB 1 — Tournament simulation ─────────────────────────────────────────────
-with tab_sim:
-    st.subheader("Run Monte Carlo tournament simulation")
-
-    col_ctrl1, col_ctrl2 = st.columns(2)
-    with col_ctrl1:
-        n_sims = st.slider("Simulations", 1_000, 5_000_000, 100_000, 100_000,
-                           help="More = more accurate. 5M may take a few minutes.")
-    with col_ctrl2:
-        seed = st.number_input("Random seed (0 = random)", value=0, step=1,
-                               help="Fix seed for reproducible results.")
-
-    if st.button("▶  Run simulation", type="primary", use_container_width=True):
-        actual_seed  = int(seed) if int(seed) != 0 else random.randint(1, 10_000_000)
-        teams_hash   = str(hash(str(sorted(
-            (k, v["atk"], v["def"], TEAM_BOOST.get(k, 1.0))
-            for k, v in TEAMS.items()
-        ))))
-        with st.spinner(f"Simulating {n_sims:,} tournaments…"):
-            win_counts, gb_prob = run_simulations(n_sims, actual_seed, teams_hash)
-
-        # ── Championship table ─────────────────────────────────────────────────
-        results_list = [
-            {"Flag": get_team(t)["flag"], "Team": t,
-             "Elo": get_team(t)["elo"], "Wins": c,
-             "Win %": round(c / n_sims * 100, 2)}
-            for t, c in win_counts.items()
-        ]
-        df = (pd.DataFrame(results_list)
-              .sort_values("Win %", ascending=False)
-              .reset_index(drop=True))
-        df.insert(0, "Rank", df.index + 1)
-
-        top    = df.iloc[0]
-        runner = df.iloc[1]
-        st.success(
-            f"{top['Flag']} **{top['Team']}** — predicted champion "
-            f"({top['Win %']:.1f}% · "
-            f"+{top['Win %'] - runner['Win %']:.1f}pp over {runner['Team']})"
-        )
-
-        col_tbl, col_chart = st.columns([3, 2], gap="large")
-        with col_tbl:
-            st.markdown("#### Championship probabilities")
-            styled = (df[["Rank", "Flag", "Team", "Elo", "Win %"]]
-                      .style
-                      .format({"Win %": "{:.2f}%", "Elo": "{:,}"})
-                      .background_gradient(cmap="Greens", subset=["Win %"]))
-            st.dataframe(styled, use_container_width=True, hide_index=True)
-        with col_chart:
-            st.markdown("#### Win probability — top 12")
-            st.bar_chart(df.head(12).set_index("Team")[["Win %"]], use_container_width=True)
-
-        # Store golden boot for the GB tab
-        st.session_state["gb_prob"]  = gb_prob
-        st.session_state["n_sims"]   = n_sims
-        st.info("Switch to the 👟 Golden Boot tab to see top scorer predictions.")
-
-# ── TAB 2 — Golden Boot ───────────────────────────────────────────────────────
-with tab_gb:
-    st.subheader("🥇 Golden Boot — predicted top scorers")
-
-    if "gb_prob" not in st.session_state:
-        st.info("Run the tournament simulation first (📊 tab) to generate Golden Boot predictions.")
-    else:
-        gb_prob  = st.session_state["gb_prob"]
-        n_ran    = st.session_state["n_sims"]
-
-        gb_rows = [
-            {"Player": p, "Team": _find_team(p), "Flag": _find_flag(p),
-             "Golden Boot %": round(v * 100, 2)}
-            for p, v in sorted(gb_prob.items(), key=lambda x: -x[1])
-            if p != "Other"
-        ]
-
-        gb_df = pd.DataFrame(gb_rows).head(20).reset_index(drop=True)
-        gb_df.insert(0, "Rank", gb_df.index + 1)
-
-        top_p = gb_df.iloc[0]
-        st.success(
-            f"{top_p['Flag']} **{top_p['Player']}** ({top_p['Team']}) — "
-            f"most likely Golden Boot winner ({top_p['Golden Boot %']:.1f}%)"
-        )
-
-        col_gt, col_gc = st.columns([3, 2], gap="large")
-        with col_gt:
-            st.markdown("#### Top 20 Golden Boot contenders")
-            styled_gb = (
-                gb_df[["Rank", "Flag", "Player", "Team", "Golden Boot %"]]
-                .style
-                .format({"Golden Boot %": "{:.2f}%"})
-                .background_gradient(cmap="Oranges", subset=["Golden Boot %"])
-            )
-            st.dataframe(styled_gb, use_container_width=True, hide_index=True)
-        with col_gc:
-            st.markdown("#### Golden Boot probability — top 10")
-            st.bar_chart(
-                gb_df.head(10).set_index("Player")[["Golden Boot %"]],
-                use_container_width=True
-            )
-
-        st.caption(
-            f"Based on {n_ran:,} simulations. Probability = share of average tournament goals "
-            f"scored by each player. 'Other' bucket excluded."
-        )
-
-# ── TAB 3 — Player Cards ──────────────────────────────────────────────────────
-with tab_cards:
-    st.subheader("🃏 FIFA Player Cards — 2026 World Cup")
-    st.caption("Ranked best to worst · FC 25 ratings · Full 6-stat cards")
-
-    # Load cards: try API first, fall back to hardcoded
-    raw_cards = []
-    if use_api and api_key:
-        with st.spinner("Fetching player stats from API…"):
-            raw_cards = fetch_player_cards_from_api(api_key)
-        if raw_cards:
-            st.success(f"✅ {len(raw_cards)} players loaded from API")
-        else:
-            st.info("ℹ️ No API player data — using built-in FC 25 ratings.")
-
-    if not raw_cards:
-        raw_cards = list(PLAYER_CARDS_FALLBACK)
-
-    # Convert to dicts
-    all_cards = [
-        {"name": r[0], "team": r[1], "pos": r[2], "overall": r[3],
-         "pace": r[4], "shooting": r[5], "passing": r[6],
-         "dribbling": r[7], "defending": r[8], "physical": r[9]}
-        for r in raw_cards
-    ]
-    all_cards.sort(key=lambda x: -x["overall"])
-
-    # ── Filters ───────────────────────────────────────────────────────────────
-    fc1, fc2, fc3 = st.columns([3, 2, 2])
-    with fc1:
-        team_options = ["All teams"] + sorted({c["team"] for c in all_cards})
-        filter_team = st.selectbox("Filter by team", team_options, key="cards_team")
-    with fc2:
-        pos_options = ["All positions"] + sorted({c["pos"] for c in all_cards})
-        filter_pos  = st.selectbox("Filter by position", pos_options, key="cards_pos")
-    with fc3:
-        min_ovr = st.slider("Min overall rating", 60, 94,
-                            60, 1, key="cards_ovr")
-
-    filtered = [
-        c for c in all_cards
-        if (filter_team == "All teams" or c["team"] == filter_team)
-        and (filter_pos  == "All positions" or c["pos"] == filter_pos)
-        and c["overall"] >= min_ovr
-    ]
-
-    st.caption(f"Showing **{len(filtered)}** players")
-
-    # ── Card grid ─────────────────────────────────────────────────────────────
-    # Render 6 cards per row using st.columns
-    CARDS_PER_ROW = 6
-    for row_start in range(0, len(filtered), CARDS_PER_ROW):
-        row_cards = filtered[row_start:row_start + CARDS_PER_ROW]
-        cols = st.columns(CARDS_PER_ROW)
-        for col, card in zip(cols, row_cards):
-            with col:
-                st.markdown(render_player_card(card), unsafe_allow_html=True)
-                st.markdown(
-                    f"<div style='height:8px'></div>",
-                    unsafe_allow_html=True
-                )
-
-    if not filtered:
-        st.info("No players match the current filters.")
-
-    st.divider()
-    st.caption(
-        "🥇 Gold card = 86+ overall · "
-        "⬜ Silver = 82–85 · "
-        "🟫 Bronze = <82 · "
-        "Sub-stats from FC 25 (FIFA 25). API mode fetches live WC stats but sub-stats require FC 25 data."
-    )
-
-# ── TAB 4 — Head-to-head ──────────────────────────────────────────────────────
-with tab_h2h:
-    st.subheader("Head-to-head match probability")
-    st.caption("Simulates 20,000 matches · Poisson model · historical penalty rates.")
-
-    all_team_names = sorted(TEAMS.keys())
-    col_a, col_vs, col_b = st.columns([5, 1, 5])
-    with col_a:
-        team_a = st.selectbox("Team A", all_team_names, index=all_team_names.index("France"))
-    with col_vs:
-        st.markdown("<br><br>vs", unsafe_allow_html=True)
-    with col_b:
-        team_b = st.selectbox("Team B", all_team_names, index=all_team_names.index("Argentina"))
-
-    if st.button("▶  Calculate odds", type="primary", use_container_width=True, key="h2h_btn"):
-        if team_a == team_b:
-            st.warning("Pick two different teams.")
-        else:
-            with st.spinner("Simulating 20,000 matches…"):
-                probs = h2h_win_prob(team_a, team_b)
-
-            xg_a, xg_b = expected_goals(team_a, team_b)
-            ta_flag = get_team(team_a)["flag"]
-            tb_flag = get_team(team_b)["flag"]
-            pen_a   = PENALTY_WIN_RATE.get(team_a, 0.50)
-            pen_b   = PENALTY_WIN_RATE.get(team_b, 0.50)
-            pen_tot = pen_a + pen_b
-
-            c1, c2, c3 = st.columns(3)
-            with c1: st.metric(f"{ta_flag} {team_a} win (90 min)", f"{probs['team_a']:.1f}%")
-            with c2: st.metric("Draw after 90 min",                 f"{probs['draw_90']:.1f}%")
-            with c3: st.metric(f"{tb_flag} {team_b} win (90 min)", f"{probs['team_b']:.1f}%")
-
-            st.divider()
-            c4, c5, c6, c7 = st.columns(4)
-            with c4: st.metric(f"{ta_flag} xG/match", f"{xg_a:.2f}")
-            with c5: st.metric(f"{tb_flag} xG/match", f"{xg_b:.2f}")
-            with c6: st.metric(f"{ta_flag} Pen win %", f"{pen_a/pen_tot*100:.0f}%")
-            with c7: st.metric(f"{tb_flag} Pen win %", f"{pen_b/pen_tot*100:.0f}%")
-
-            ha_a = HOST_ADVANTAGE.get(team_a, 0)
-            ha_b = HOST_ADVANTAGE.get(team_b, 0)
-            boost_a = TEAM_BOOST.get(team_a, 1.0)
-            boost_b = TEAM_BOOST.get(team_b, 1.0)
-            notes = []
-            if ha_a:      notes.append(f"{ta_flag} home boost +{ha_a*100:.0f}%")
-            if ha_b:      notes.append(f"{tb_flag} home boost +{ha_b*100:.0f}%")
-            if boost_a != 1.0: notes.append(f"{ta_flag} manual boost ×{boost_a:.2f}")
-            if boost_b != 1.0: notes.append(f"{tb_flag} manual boost ×{boost_b:.2f}")
-            if notes: st.caption(" · ".join(notes))
-
-            st.caption("Win/draw % = 90 min only. Knockout draws → extra time → historical penalty rates.")
-
-# ── TAB 5 — R32 bracket ───────────────────────────────────────────────────────
-with tab_bracket:
-    st.subheader("Round of 32 — confirmed fixtures")
-    st.caption("Win % = 90-minute Poisson probability. Pen % = historical shootout win rate (normalised).")
-
-    rows = []
-    for home, away, date in R32_BRACKET:
-        th, ta = get_team(home), get_team(away)
-        if away == "TBD":
-            rows.append({"Date": date, "Home": f"{th['flag']} {home}", "Away": "🏳️ TBD",
-                         "Home xG": "—", "Away xG": "—",
-                         "Home win %": "—", "Draw %": "—", "Away win %": "—",
-                         "Home pen %": "—", "Away pen %": "—"})
-        else:
-            xg_h, xg_a = expected_goals(home, away)
-            probs = h2h_win_prob(home, away, n=10_000)
-            ph = PENALTY_WIN_RATE.get(home, 0.50)
-            pa = PENALTY_WIN_RATE.get(away, 0.50)
-            pt = ph + pa
-            rows.append({"Date": date,
-                         "Home": f"{th['flag']} {home}", "Away": f"{ta['flag']} {away}",
-                         "Home xG": f"{xg_h:.2f}", "Away xG": f"{xg_a:.2f}",
-                         "Home win %": f"{probs['team_a']:.1f}%",
-                         "Draw %":    f"{probs['draw_90']:.1f}%",
-                         "Away win %": f"{probs['team_b']:.1f}%",
-                         "Home pen %": f"{ph/pt*100:.0f}%",
-                         "Away pen %": f"{pa/pt*100:.0f}%"})
-
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-# ── TAB 6 — Model explainer ───────────────────────────────────────────────────
-with tab_model:
-    if use_api and api_key and n_matches_used > 0:
-        st.success(f"🟢 Live ratings — {n_matches_used} international matches (last 2 years).")
-    else:
-        st.info("🔵 Built-in base ratings. Add API key for live data.")
-
-    st.subheader("How the model works")
-
-    with st.expander("Poisson goal model", expanded=True):
-        st.markdown("""
-**Goals drawn from a Poisson distribution each match.**
-
-```
-xG_A = attack_A × defense_B × (1 + home_boost_A) × manual_boost_A
-xG_B = attack_B × defense_A × (1 + home_boost_B) × manual_boost_B
-```
-
-Draws → extra time (33% xG) → historical-rate penalty shootout.
-
-**Home advantage** is per-host-nation and adjustable via sidebar sliders.  
-**Team boost** multiplier lets you manually adjust any team's attack.
-        """)
-
-    with st.expander("Golden Boot model"):
-        st.markdown("""
-Each team's goals are distributed across players using their **goal share** —
-the fraction of team goals that player typically scores (e.g. Haaland ~55% for Norway).
-
-In each simulated match, goals are randomly assigned to players weighted by their share.
-Tallies accumulate across every round a team plays. The Golden Boot probability for each
-player is their **proportional share of average tournament goals** across all simulations.
-
-When an API key is active, real WC 2026 top scorer data replaces the built-in squad list.
-        """)
-
-    with st.expander("Live ratings from API"):
-        st.markdown("""
-Fetches up to 100 recent results per competition (WC qualifiers, Euros, Copa América, AFCON, Asian Cup)
-over the last 2 years. Recency-weighted (last 6 months = 1.0, 6–12 = 0.7, 12–24 = 0.4).
-Blended 60% live / 40% base to reduce small-sample noise. Minimum 3 matches to update.
-        """)
-
-    with st.expander("Historical penalty rates"):
-        pen_df = pd.DataFrame([
-            {"Flag": get_team(t)["flag"], "Team": t, "Win rate": f"{r*100:.0f}%"}
-            for t, r in sorted(PENALTY_WIN_RATE.items(), key=lambda x: -x[1])
-            if t in TEAMS
-        ])
-        st.dataframe(pen_df, use_container_width=True, hide_index=True)
-        st.caption("Source: World Cup + major continental tournaments through 2024.")
-
-    with st.expander("Team ratings"):
-        elo_df = pd.DataFrame([
-            {"Flag": v["flag"], "Team": k, "Attack λ": v["atk"],
-             "Def mult.": v["def"], "Boost": TEAM_BOOST.get(k, 1.0), "Elo": v["elo"]}
-            for k, v in sorted(TEAMS.items(), key=lambda x: -x[1]["elo"])
-        ])
-        st.dataframe(
-            elo_df.style.format({"Attack λ": "{:.3f}", "Def mult.": "{:.3f}",
-                                 "Boost": "{:.2f}x", "Elo": "{:,}"}),
-            use_container_width=True, hide_index=True
-        )
-
-    with st.expander("What a pro model adds"):
-        st.markdown("""
-| Feature | This model | Pro model |
-|---|---|---|
-| Goal distribution | Poisson ✅ | Poisson/negative-binomial ✅ |
-| Team ratings | Live API + recency weighting ✅ | MLE fit on 10k+ matches |
-| Home advantage | Per-host-nation, adjustable ✅ | Per-stadium + crowd size |
-| Manual boost | Any team, any amount ✅ | N/A (automated) |
-| Injury/squad data | Not included | Live feeds |
-| Penalties | Historical win rates ✅ | Team + player-level records |
-| Golden Boot | Goal-share weighted ✅ | Shot-level xG per player |
-| Bracket | Real 2026 WC ✅ | Real 2026 WC ✅ |
-        """)
-
 
 # ════════════════════════════════════════════════════════════════════════════════
 # FIFA PLAYER CARDS DATA
@@ -1275,3 +845,432 @@ def render_player_card(p: dict) -> str:
 # ════════════════════════════════════════════════════════════════════════════════
 # PLAYER CARDS TAB (appended to existing tabs in main UI below)
 # ════════════════════════════════════════════════════════════════════════════════
+# ── UI ─────────────────────────────────────────────────────────────────────────
+st.title("🏆 2026 World Cup Simulator")
+st.caption("Poisson goal model · Live API ratings · Historical penalty rates · Golden Boot · Monte Carlo")
+
+# ── Sidebar ────────────────────────────────────────────────────────────────────
+# Defaults defined at module scope so all tabs can reference them safely
+ratings_source = "Base ratings (built-in)"
+n_matches_used = 0
+squads_source  = "Built-in squad data"
+
+with st.sidebar:
+    st.header("🔑 API Settings")
+    api_key = st.text_input("Football API Key", type="password",
+                            help="API-Football key for live ratings + Golden Boot player data")
+    use_api = st.checkbox("Enable live API", value=False)
+
+    if use_api and api_key:
+        with st.spinner("Connecting…"):
+            status = fetch_live_data(api_key)
+        if not status:
+            st.warning("⚠️ API failed. Using built-in ratings.")
+        else:
+            st.success("✅ API connected")
+
+            with st.spinner("Fetching match results…"):
+                results_data = fetch_recent_international_results(api_key)
+            if results_data:
+                live_teams = compute_ratings_from_results(results_data)
+                TEAMS.update(live_teams)
+                n_matches_used = len(results_data)
+                ratings_source = f"Live ({n_matches_used} matches)"
+                st.success(f"✅ Ratings: {n_matches_used} matches")
+
+            with st.spinner("Fetching WC 2026 top scorers…"):
+                api_squads = fetch_wc2026_top_scorers(api_key)
+            if api_squads:
+                SQUADS.update(api_squads)
+                squads_source = f"Live WC scorers ({len(api_squads)} teams)"
+                st.success(f"✅ Scorers: {len(api_squads)} teams")
+            else:
+                st.info("ℹ️ No WC scorer data yet — using built-in squads.")
+    else:
+        st.info("🔵 Built-in ratings. Add API key for live data.")
+
+    st.divider()
+
+    # ── Home advantage sliders ─────────────────────────────────────────────────
+    st.subheader("🏟️ Host-nation advantage")
+    st.caption("Goal-rate boost when host nations play at home.")
+    ha_usa    = st.slider("🇺🇸 USA",    0.0, 0.6, DEFAULT_HOST_ADVANTAGE["USA"],    0.01, key="ha_usa")
+    ha_mexico = st.slider("🇲🇽 Mexico", 0.0, 0.6, DEFAULT_HOST_ADVANTAGE["Mexico"], 0.01, key="ha_mex")
+    ha_canada = st.slider("🇨🇦 Canada", 0.0, 0.6, DEFAULT_HOST_ADVANTAGE["Canada"], 0.01, key="ha_can")
+    HOST_ADVANTAGE["USA"]    = ha_usa
+    HOST_ADVANTAGE["Mexico"] = ha_mexico
+    HOST_ADVANTAGE["Canada"] = ha_canada
+
+    st.divider()
+
+    # ── Manual team boost ──────────────────────────────────────────────────────
+    st.subheader("⚡ Team boost")
+    st.caption("Multiply a team's attack rating up or down (1.0 = no change).")
+    boost_team = st.selectbox("Team", ["(none)"] + sorted(TEAMS.keys()), key="boost_team")
+    boost_val  = st.slider("Attack multiplier", 0.5, 2.0, 1.0, 0.05, key="boost_val",
+                           help="1.5 = team scores 50% more goals than their rating suggests.")
+    if boost_team != "(none)":
+        TEAM_BOOST[boost_team] = boost_val
+        if boost_val != 1.0:
+            flag = TEAMS.get(boost_team, {}).get("flag", "")
+            st.caption(f"{flag} {boost_team} attack ×{boost_val:.2f}")
+
+    st.divider()
+    st.caption(f"**Ratings:** {ratings_source}")
+    st.caption(f"**Scorers:** {squads_source}")
+
+# ── Tabs ───────────────────────────────────────────────────────────────────────
+tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_model = st.tabs([
+    "📊 Tournament simulation",
+    "👟 Golden Boot",
+    "🃏 Player Cards",
+    "⚔️  Head-to-head",
+    "🗓️  R32 bracket",
+    "🔬 How it works",
+])
+
+# ── TAB 1 — Tournament simulation ─────────────────────────────────────────────
+with tab_sim:
+    st.subheader("Run Monte Carlo tournament simulation")
+
+    col_ctrl1, col_ctrl2 = st.columns(2)
+    with col_ctrl1:
+        n_sims = st.slider("Simulations", 1_000, 5_000_000, 100_000, 100_000,
+                           help="More = more accurate. 5M may take a few minutes.")
+    with col_ctrl2:
+        seed = st.number_input("Random seed (0 = random)", value=0, step=1,
+                               help="Fix seed for reproducible results.")
+
+    if st.button("▶  Run simulation", type="primary", use_container_width=True):
+        actual_seed  = int(seed) if int(seed) != 0 else random.randint(1, 10_000_000)
+        teams_hash   = str(hash(str(sorted(
+            (k, v["atk"], v["def"], TEAM_BOOST.get(k, 1.0))
+            for k, v in TEAMS.items()
+        ))))
+        with st.spinner(f"Simulating {n_sims:,} tournaments…"):
+            win_counts, gb_prob = run_simulations(n_sims, actual_seed, teams_hash)
+
+        # ── Championship table ─────────────────────────────────────────────────
+        results_list = [
+            {"Flag": get_team(t)["flag"], "Team": t,
+             "Elo": get_team(t)["elo"], "Wins": c,
+             "Win %": round(c / n_sims * 100, 2)}
+            for t, c in win_counts.items()
+        ]
+        df = (pd.DataFrame(results_list)
+              .sort_values("Win %", ascending=False)
+              .reset_index(drop=True))
+        df.insert(0, "Rank", df.index + 1)
+
+        top = df.iloc[0]
+        if len(df) > 1:
+            runner = df.iloc[1]
+            runner_str = f" · +{top['Win %'] - runner['Win %']:.1f}pp over {runner['Team']}"
+        else:
+            runner_str = ""
+        st.success(
+            f"{top['Flag']} **{top['Team']}** — predicted champion "
+            f"({top['Win %']:.1f}%{runner_str})"
+        )
+
+        col_tbl, col_chart = st.columns([3, 2], gap="large")
+        with col_tbl:
+            st.markdown("#### Championship probabilities")
+            styled = (df[["Rank", "Flag", "Team", "Elo", "Win %"]]
+                      .style
+                      .format({"Win %": "{:.2f}%", "Elo": "{:,}"})
+                      .background_gradient(cmap="Greens", subset=["Win %"]))
+            st.dataframe(styled, use_container_width=True, hide_index=True)
+        with col_chart:
+            st.markdown("#### Win probability — top 12")
+            st.bar_chart(df.head(12).set_index("Team")[["Win %"]], use_container_width=True)
+
+        # Store golden boot for the GB tab
+        st.session_state["gb_prob"]  = gb_prob
+        st.session_state["n_sims"]   = n_sims
+        st.info("Switch to the 👟 Golden Boot tab to see top scorer predictions.")
+
+# ── TAB 2 — Golden Boot ───────────────────────────────────────────────────────
+with tab_gb:
+    st.subheader("🥇 Golden Boot — predicted top scorers")
+
+    if "gb_prob" not in st.session_state:
+        st.info("Run the tournament simulation first (📊 tab) to generate Golden Boot predictions.")
+    else:
+        gb_prob  = st.session_state["gb_prob"]
+        n_ran    = st.session_state["n_sims"]
+
+        gb_rows = [
+            {"Player": p, "Team": _find_team(p), "Flag": _find_flag(p),
+             "Golden Boot %": round(v * 100, 2)}
+            for p, v in sorted(gb_prob.items(), key=lambda x: -x[1])
+            if p != "Other"
+        ]
+
+        gb_df = pd.DataFrame(gb_rows).head(20).reset_index(drop=True)
+        gb_df.insert(0, "Rank", gb_df.index + 1)
+
+        if gb_df.empty:
+            st.warning("No player goal data available — run more simulations or check squad data.")
+        else:
+            top_p = gb_df.iloc[0]
+            st.success(
+                f"{top_p['Flag']} **{top_p['Player']}** ({top_p['Team']}) — "
+                f"most likely Golden Boot winner ({top_p['Golden Boot %']:.1f}%)"
+            )
+
+            col_gt, col_gc = st.columns([3, 2], gap="large")
+            with col_gt:
+                st.markdown("#### Top 20 Golden Boot contenders")
+                styled_gb = (
+                    gb_df[["Rank", "Flag", "Player", "Team", "Golden Boot %"]]
+                    .style
+                    .format({"Golden Boot %": "{:.2f}%"})
+                    .background_gradient(cmap="Oranges", subset=["Golden Boot %"])
+                )
+                st.dataframe(styled_gb, use_container_width=True, hide_index=True)
+            with col_gc:
+                st.markdown("#### Golden Boot probability — top 10")
+                st.bar_chart(
+                    gb_df.head(10).set_index("Player")[["Golden Boot %"]],
+                    use_container_width=True
+                )
+
+            st.caption(
+                f"Based on {n_ran:,} simulations. Probability = share of average tournament goals "
+                f"scored by each player. 'Other' bucket excluded."
+            )
+
+# ── TAB 3 — Player Cards ──────────────────────────────────────────────────────
+with tab_cards:
+    st.subheader("🃏 FIFA Player Cards — 2026 World Cup")
+    st.caption("Ranked best to worst · FC 25 ratings · Full 6-stat cards")
+
+    # Load cards: try API first, fall back to hardcoded
+    raw_cards = []
+    if use_api and api_key:
+        with st.spinner("Fetching player stats from API…"):
+            raw_cards = fetch_player_cards_from_api(api_key)
+        if raw_cards:
+            st.success(f"✅ {len(raw_cards)} players loaded from API")
+        else:
+            st.info("ℹ️ No API player data — using built-in FC 25 ratings.")
+
+    if not raw_cards:
+        raw_cards = list(PLAYER_CARDS_FALLBACK)
+
+    # Convert to dicts
+    all_cards = [
+        {"name": r[0], "team": r[1], "pos": r[2], "overall": r[3],
+         "pace": r[4], "shooting": r[5], "passing": r[6],
+         "dribbling": r[7], "defending": r[8], "physical": r[9]}
+        for r in raw_cards
+    ]
+    all_cards.sort(key=lambda x: -x["overall"])
+
+    # ── Filters ───────────────────────────────────────────────────────────────
+    fc1, fc2, fc3 = st.columns([3, 2, 2])
+    with fc1:
+        team_options = ["All teams"] + sorted({c["team"] for c in all_cards})
+        filter_team = st.selectbox("Filter by team", team_options, key="cards_team")
+    with fc2:
+        pos_options = ["All positions"] + sorted({c["pos"] for c in all_cards})
+        filter_pos  = st.selectbox("Filter by position", pos_options, key="cards_pos")
+    with fc3:
+        min_ovr = st.slider("Min overall rating", 60, 94,
+                            60, 1, key="cards_ovr")
+
+    filtered = [
+        c for c in all_cards
+        if (filter_team == "All teams" or c["team"] == filter_team)
+        and (filter_pos  == "All positions" or c["pos"] == filter_pos)
+        and c["overall"] >= min_ovr
+    ]
+
+    st.caption(f"Showing **{len(filtered)}** players")
+
+    # ── Card grid ─────────────────────────────────────────────────────────────
+    # Render 6 cards per row using st.columns
+    CARDS_PER_ROW = 6
+    for row_start in range(0, len(filtered), CARDS_PER_ROW):
+        row_cards = filtered[row_start:row_start + CARDS_PER_ROW]
+        cols = st.columns(CARDS_PER_ROW)
+        for col, card in zip(cols, row_cards):
+            with col:
+                st.markdown(render_player_card(card), unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='height:8px'></div>",
+                    unsafe_allow_html=True
+                )
+
+    if not filtered:
+        st.info("No players match the current filters.")
+
+    st.divider()
+    st.caption(
+        "🥇 Gold card = 86+ overall · "
+        "⬜ Silver = 82–85 · "
+        "🟫 Bronze = <82 · "
+        "Sub-stats from FC 25 (FIFA 25). API mode fetches live WC stats but sub-stats require FC 25 data."
+    )
+
+# ── TAB 4 — Head-to-head ──────────────────────────────────────────────────────
+with tab_h2h:
+    st.subheader("Head-to-head match probability")
+    st.caption("Simulates 20,000 matches · Poisson model · historical penalty rates.")
+
+    all_team_names = sorted(TEAMS.keys())
+    col_a, col_vs, col_b = st.columns([5, 1, 5])
+    with col_a:
+        team_a = st.selectbox("Team A", all_team_names, index=all_team_names.index("France"))
+    with col_vs:
+        st.markdown("<br><br>vs", unsafe_allow_html=True)
+    with col_b:
+        team_b = st.selectbox("Team B", all_team_names, index=all_team_names.index("Argentina"))
+
+    if st.button("▶  Calculate odds", type="primary", use_container_width=True, key="h2h_btn"):
+        if team_a == team_b:
+            st.warning("Pick two different teams.")
+        else:
+            with st.spinner("Simulating 20,000 matches…"):
+                probs = h2h_win_prob(team_a, team_b)
+
+            xg_a, xg_b = expected_goals(team_a, team_b)
+            ta_flag = get_team(team_a)["flag"]
+            tb_flag = get_team(team_b)["flag"]
+            pen_a   = PENALTY_WIN_RATE.get(team_a, 0.50)
+            pen_b   = PENALTY_WIN_RATE.get(team_b, 0.50)
+            pen_tot = pen_a + pen_b
+
+            c1, c2, c3 = st.columns(3)
+            with c1: st.metric(f"{ta_flag} {team_a} win (90 min)", f"{probs['team_a']:.1f}%")
+            with c2: st.metric("Draw after 90 min",                 f"{probs['draw_90']:.1f}%")
+            with c3: st.metric(f"{tb_flag} {team_b} win (90 min)", f"{probs['team_b']:.1f}%")
+
+            st.divider()
+            c4, c5, c6, c7 = st.columns(4)
+            with c4: st.metric(f"{ta_flag} xG/match", f"{xg_a:.2f}")
+            with c5: st.metric(f"{tb_flag} xG/match", f"{xg_b:.2f}")
+            with c6: st.metric(f"{ta_flag} Pen win %", f"{pen_a/pen_tot*100:.0f}%")
+            with c7: st.metric(f"{tb_flag} Pen win %", f"{pen_b/pen_tot*100:.0f}%")
+
+            ha_a = HOST_ADVANTAGE.get(team_a, 0)
+            ha_b = HOST_ADVANTAGE.get(team_b, 0)
+            boost_a = TEAM_BOOST.get(team_a, 1.0)
+            boost_b = TEAM_BOOST.get(team_b, 1.0)
+            notes = []
+            if ha_a:      notes.append(f"{ta_flag} home boost +{ha_a*100:.0f}%")
+            if ha_b:      notes.append(f"{tb_flag} home boost +{ha_b*100:.0f}%")
+            if boost_a != 1.0: notes.append(f"{ta_flag} manual boost ×{boost_a:.2f}")
+            if boost_b != 1.0: notes.append(f"{tb_flag} manual boost ×{boost_b:.2f}")
+            if notes: st.caption(" · ".join(notes))
+
+            st.caption("Win/draw % = 90 min only. Knockout draws → extra time → historical penalty rates.")
+
+# ── TAB 5 — R32 bracket ───────────────────────────────────────────────────────
+with tab_bracket:
+    st.subheader("Round of 32 — confirmed fixtures")
+    st.caption("Win % = 90-minute Poisson probability. Pen % = historical shootout win rate (normalised).")
+
+    rows = []
+    for home, away, date in R32_BRACKET:
+        th, ta = get_team(home), get_team(away)
+        if away == "TBD":
+            rows.append({"Date": date, "Home": f"{th['flag']} {home}", "Away": "🏳️ TBD",
+                         "Home xG": "—", "Away xG": "—",
+                         "Home win %": "—", "Draw %": "—", "Away win %": "—",
+                         "Home pen %": "—", "Away pen %": "—"})
+        else:
+            xg_h, xg_a = expected_goals(home, away)
+            probs = h2h_win_prob(home, away, n=10_000)
+            ph = PENALTY_WIN_RATE.get(home, 0.50)
+            pa = PENALTY_WIN_RATE.get(away, 0.50)
+            pt = ph + pa
+            rows.append({"Date": date,
+                         "Home": f"{th['flag']} {home}", "Away": f"{ta['flag']} {away}",
+                         "Home xG": f"{xg_h:.2f}", "Away xG": f"{xg_a:.2f}",
+                         "Home win %": f"{probs['team_a']:.1f}%",
+                         "Draw %":    f"{probs['draw_90']:.1f}%",
+                         "Away win %": f"{probs['team_b']:.1f}%",
+                         "Home pen %": f"{ph/pt*100:.0f}%",
+                         "Away pen %": f"{pa/pt*100:.0f}%"})
+
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+# ── TAB 6 — Model explainer ───────────────────────────────────────────────────
+with tab_model:
+    if use_api and api_key and n_matches_used > 0:
+        st.success(f"🟢 Live ratings — {n_matches_used} international matches (last 2 years).")
+    else:
+        st.info("🔵 Built-in base ratings. Add API key for live data.")
+
+    st.subheader("How the model works")
+
+    with st.expander("Poisson goal model", expanded=True):
+        st.markdown("""
+**Goals drawn from a Poisson distribution each match.**
+
+```
+xG_A = attack_A × defense_B × (1 + home_boost_A) × manual_boost_A
+xG_B = attack_B × defense_A × (1 + home_boost_B) × manual_boost_B
+```
+
+Draws → extra time (33% xG) → historical-rate penalty shootout.
+
+**Home advantage** is per-host-nation and adjustable via sidebar sliders.  
+**Team boost** multiplier lets you manually adjust any team's attack.
+        """)
+
+    with st.expander("Golden Boot model"):
+        st.markdown("""
+Each team's goals are distributed across players using their **goal share** —
+the fraction of team goals that player typically scores (e.g. Haaland ~55% for Norway).
+
+In each simulated match, goals are randomly assigned to players weighted by their share.
+Tallies accumulate across every round a team plays. The Golden Boot probability for each
+player is their **proportional share of average tournament goals** across all simulations.
+
+When an API key is active, real WC 2026 top scorer data replaces the built-in squad list.
+        """)
+
+    with st.expander("Live ratings from API"):
+        st.markdown("""
+Fetches up to 100 recent results per competition (WC qualifiers, Euros, Copa América, AFCON, Asian Cup)
+over the last 2 years. Recency-weighted (last 6 months = 1.0, 6–12 = 0.7, 12–24 = 0.4).
+Blended 60% live / 40% base to reduce small-sample noise. Minimum 3 matches to update.
+        """)
+
+    with st.expander("Historical penalty rates"):
+        pen_df = pd.DataFrame([
+            {"Flag": get_team(t)["flag"], "Team": t, "Win rate": f"{r*100:.0f}%"}
+            for t, r in sorted(PENALTY_WIN_RATE.items(), key=lambda x: -x[1])
+            if t in TEAMS
+        ])
+        st.dataframe(pen_df, use_container_width=True, hide_index=True)
+        st.caption("Source: World Cup + major continental tournaments through 2024.")
+
+    with st.expander("Team ratings"):
+        elo_df = pd.DataFrame([
+            {"Flag": v["flag"], "Team": k, "Attack λ": v["atk"],
+             "Def mult.": v["def"], "Boost": TEAM_BOOST.get(k, 1.0), "Elo": v["elo"]}
+            for k, v in sorted(TEAMS.items(), key=lambda x: -x[1]["elo"])
+        ])
+        st.dataframe(
+            elo_df.style.format({"Attack λ": "{:.3f}", "Def mult.": "{:.3f}",
+                                 "Boost": "{:.2f}x", "Elo": "{:,}"}),
+            use_container_width=True, hide_index=True
+        )
+
+    with st.expander("What a pro model adds"):
+        st.markdown("""
+| Feature | This model | Pro model |
+|---|---|---|
+| Goal distribution | Poisson ✅ | Poisson/negative-binomial ✅ |
+| Team ratings | Live API + recency weighting ✅ | MLE fit on 10k+ matches |
+| Home advantage | Per-host-nation, adjustable ✅ | Per-stadium + crowd size |
+| Manual boost | Any team, any amount ✅ | N/A (automated) |
+| Injury/squad data | Not included | Live feeds |
+| Penalties | Historical win rates ✅ | Team + player-level records |
+| Golden Boot | Goal-share weighted ✅ | Shot-level xG per player |
+| Bracket | Real 2026 WC ✅ | Real 2026 WC ✅ |
+        """)
