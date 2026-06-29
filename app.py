@@ -9,6 +9,77 @@ from collections import defaultdict
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="2026 World Cup Simulator", page_icon="🏆", layout="wide")
 
+# ── Global CSS theme ───────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* Dark dashboard base */
+[data-testid="stAppViewContainer"] { background: #0d0d1a; }
+[data-testid="stSidebar"]          { background: #111120; border-right: 1px solid #1e1e3a; }
+[data-testid="stHeader"]           { background: transparent; }
+
+/* Metric cards */
+[data-testid="metric-container"] {
+    background: #161628;
+    border: 1px solid #2a2a4a;
+    border-radius: 10px;
+    padding: 12px 16px !important;
+}
+[data-testid="stMetricLabel"]  { color: #8888bb !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: .06em; }
+[data-testid="stMetricValue"]  { color: #e8e8ff !important; font-size: 1.6rem !important; font-weight: 800 !important; }
+[data-testid="stMetricDelta"]  { font-size: 11px !important; }
+
+/* Tabs */
+[data-testid="stTabs"] button {
+    color: #8888bb;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: .04em;
+    border-bottom: 2px solid transparent;
+}
+[data-testid="stTabs"] button[aria-selected="true"] {
+    color: #ffd700 !important;
+    border-bottom-color: #ffd700 !important;
+}
+
+/* Headings */
+h1 { background: linear-gradient(90deg,#ffd700,#ff8c00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-weight:900 !important; }
+h2,h3 { color: #c8c8ff !important; }
+
+/* Dataframe */
+[data-testid="stDataFrame"] { border: 1px solid #2a2a4a; border-radius: 8px; }
+
+/* Divider */
+hr { border-color: #2a2a4a !important; }
+
+/* Buttons */
+[data-testid="baseButton-primary"] {
+    background: linear-gradient(90deg,#ffd700,#ff8c00) !important;
+    color: #000 !important;
+    font-weight: 800 !important;
+    border: none !important;
+    border-radius: 8px !important;
+}
+
+/* Sidebar text */
+.css-1d391kg, [data-testid="stSidebarContent"] { color: #c8c8ff; }
+
+/* Caption */
+[data-testid="stCaptionContainer"] { color: #6666aa !important; }
+
+/* Stat pill style for inline HTML */
+.stat-pill {
+    display: inline-block;
+    background: #1e1e3a;
+    border: 1px solid #3a3a6a;
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: #c8c8ff;
+    margin: 2px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA — Updated June 2026
 # Elo ratings from eloratings.net · atk/def calibrated from 2024-2026 results
@@ -979,8 +1050,27 @@ def h2h_win_prob(team_a: str, team_b: str, n: int = 20_000) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 # UI
 # ══════════════════════════════════════════════════════════════════════════════
-st.title("🏆 2026 World Cup Simulator")
-st.caption("Poisson goal model · Live API ratings · Historical penalty rates · Golden Boot · Monte Carlo")
+st.markdown("""
+<div style="display:flex;align-items:center;justify-content:space-between;
+            padding:18px 24px;background:linear-gradient(135deg,#0d0d1a,#1a1a2e,#16213e);
+            border:1px solid #2a2a4a;border-radius:14px;margin-bottom:8px;">
+  <div>
+    <div style="font-size:28px;font-weight:900;background:linear-gradient(90deg,#ffd700,#ff8c00);
+                -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+      🏆 FIFA World Cup 2026 Simulator
+    </div>
+    <div style="font-size:12px;color:#8888bb;margin-top:4px;letter-spacing:.05em;">
+      POISSON GOAL MODEL &nbsp;·&nbsp; MONTE CARLO &nbsp;·&nbsp; ELO RATINGS &nbsp;·&nbsp;
+      LIVE API &nbsp;·&nbsp; GOLDEN BOOT &nbsp;·&nbsp; FIFA CARDS &nbsp;·&nbsp; INTERACTIVE MAP
+    </div>
+  </div>
+  <div style="text-align:right;color:#6666aa;font-size:11px;">
+    <div style="font-size:22px;">🇺🇸🇲🇽🇨🇦</div>
+    <div>USA · Mexico · Canada</div>
+    <div>June–July 2026</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # Module-scope defaults so all tabs can read them even without API
 ratings_source  = "Built-in (June 2026)"
@@ -1067,9 +1157,10 @@ with st.sidebar:
     st.caption(f"**Scorers:** {squads_source}")
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_model, tab_api = st.tabs([
+tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_map, tab_history, tab_model, tab_api = st.tabs([
     "📊 Simulation", "👟 Golden Boot", "🃏 Player Cards",
-    "⚔️ Head-to-head", "🗓️ R32 Bracket", "🔬 How it works", "🔌 API Status",
+    "⚔️ Head-to-head", "🗓️ R32 Bracket", "🗺️ Team Map",
+    "🏆 WC History", "🔬 How it works", "🔌 API Status",
 ])
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1361,7 +1452,297 @@ with tab_bracket:
         st.markdown("".join(match_card(m) for m in bracket_data[8:]), unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════════════════════════════
-# TAB 6 — Model explainer
+# ════════════════════════════════════════════════════════════════════════════════
+# TAB 6 — Team Map
+# ════════════════════════════════════════════════════════════════════════════════
+with tab_map:
+    st.subheader("🗺️ 2026 World Cup — Team Map")
+    st.caption("All 32 qualified nations · Click a team for full stats · Win probabilities from last simulation run")
+
+    # Team coordinates (capital/major city lat/lng)
+    TEAM_COORDS = {
+        "Argentina":   (-34.6, -58.4), "Australia":   (-33.9, 151.2),
+        "Austria":     (48.2,  16.4),  "Belgium":     (50.8,  4.4),
+        "Bosnia":      (43.8,  18.4),  "Brazil":      (-15.8, -47.9),
+        "Canada":      (45.4,  -75.7), "Cape Verde":  (14.9,  -23.5),
+        "Colombia":    (4.7,   -74.1), "Croatia":     (45.8,  15.9),
+        "Ecuador":     (-0.2,  -78.5), "Egypt":       (30.1,  31.2),
+        "England":     (51.5,  -0.1),  "France":      (48.9,  2.3),
+        "Germany":     (52.5,  13.4),  "Ghana":       (5.6,   -0.2),
+        "Iran":        (35.7,  51.4),  "Ivory Coast": (5.3,   -4.0),
+        "Japan":       (35.7,  139.7), "Mexico":      (19.4,  -99.1),
+        "Morocco":     (34.0,  -6.8),  "Netherlands": (52.4,  4.9),
+        "Norway":      (59.9,  10.7),  "Paraguay":    (-25.3, -57.6),
+        "Portugal":    (38.7,  -9.1),  "Senegal":     (14.7,  -17.4),
+        "South Africa":(25.7,  28.2),  "Spain":       (40.4,  -3.7),
+        "Sweden":      (59.3,  18.1),  "Switzerland": (46.9,  7.4),
+        "USA":         (38.9,  -77.0), "Uzbekistan":  (41.3,  69.2),
+    }
+
+    # Build map data with win probabilities if simulation has been run
+    gb_probs = st.session_state.get("gb_prob", {})
+    win_data = {}
+    if "last_win_counts" in st.session_state:
+        wc = st.session_state["last_win_counts"]
+        n  = st.session_state.get("n_sims", 1)
+        win_data = {t: round(c/n*100, 1) for t, c in wc.items()}
+
+    map_rows = []
+    for team, (lat, lon) in TEAM_COORDS.items():
+        td   = BASE_TEAMS.get(team, {})
+        flag = td.get("flag", "🏳️")
+        elo  = td.get("elo", 0)
+        atk  = td.get("atk", 0)
+        dfn  = td.get("def", 0)
+        win_pct = win_data.get(team, None)
+        pen_r   = PENALTY_WIN_RATE.get(team, 0.5)
+        # Top players for this team
+        players = FALLBACK_SQUADS.get(team, [])
+        top2    = [p for p, _ in players[:2] if p != "Other"]
+        map_rows.append({
+            "team": team, "flag": flag, "lat": lat, "lon": lon,
+            "elo": elo, "atk": atk, "def": dfn,
+            "win_pct": win_pct, "pen_r": pen_r,
+            "top_players": ", ".join(top2),
+        })
+
+    df_map = pd.DataFrame(map_rows)
+
+    # Render interactive map using st.map with size encoding by Elo
+    # Use pydeck-style via st.map for simplicity, with a custom HTML map for full interactivity
+    map_html = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin:0; background:#0d0d1a; font-family: 'Segoe UI', sans-serif; }
+  #map { width:100%; height:580px; }
+  .leaflet-container { background:#0d0d1a !important; }
+  .info-panel {
+    position:absolute; top:10px; right:10px; z-index:1000;
+    background:#161628; border:1px solid #2a2a4a; border-radius:12px;
+    padding:16px; min-width:220px; max-width:260px; color:#e8e8ff;
+    display:none;
+  }
+  .info-panel.visible { display:block; }
+  .info-flag { font-size:36px; text-align:center; }
+  .info-name { font-size:16px; font-weight:800; text-align:center; color:#ffd700; margin:4px 0; }
+  .stat-row { display:flex; justify-content:space-between; padding:3px 0;
+               border-bottom:1px solid #2a2a4a; font-size:12px; }
+  .stat-label { color:#8888bb; }
+  .stat-val   { color:#e8e8ff; font-weight:700; }
+  .win-bar    { height:6px; border-radius:3px; background:#2a2a4a; margin:6px 0; }
+  .win-fill   { height:6px; border-radius:3px; background:linear-gradient(90deg,#ffd700,#ff8c00); }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<div id="map"></div>
+<div class="info-panel" id="info"></div>
+<script>
+const teams = """ + df_map.to_json(orient="records") + """;
+
+const map = L.map('map', {
+  center: [20, 10], zoom: 2,
+  minZoom: 1, maxZoom: 6,
+  zoomControl: true,
+});
+
+// Dark tile layer
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '©OpenStreetMap ©CartoDB',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+const maxElo = Math.max(...teams.map(t => t.elo));
+const minElo = Math.min(...teams.map(t => t.elo));
+
+teams.forEach(t => {
+  const norm = (t.elo - minElo) / (maxElo - minElo);
+  const r    = 8 + norm * 14;
+  // Color by Elo: gold for top, silver mid, bronze low
+  const col  = norm > 0.7 ? '#ffd700' : norm > 0.4 ? '#c0c0c0' : '#a0714a';
+
+  const circle = L.circleMarker([t.lat, t.lon], {
+    radius: r, fillColor: col, color: '#0d0d1a',
+    weight: 2, opacity: 1, fillOpacity: 0.85
+  }).addTo(map);
+
+  // Tooltip with flag
+  circle.bindTooltip(t.flag + ' ' + t.team, {
+    permanent: false, direction: 'top',
+    className: 'leaflet-tooltip',
+    offset: [0, -r]
+  });
+
+  circle.on('click', () => {
+    const panel = document.getElementById('info');
+    const winPct = t.win_pct !== null ? t.win_pct.toFixed(1) + '%' : 'Run sim →';
+    const winFill = t.win_pct !== null ? Math.min(t.win_pct * 5, 100) : 0;
+    panel.innerHTML = `
+      <div class="info-flag">${t.flag}</div>
+      <div class="info-name">${t.team}</div>
+      <div class="stat-row"><span class="stat-label">Elo rating</span><span class="stat-val">${t.elo.toLocaleString()}</span></div>
+      <div class="stat-row"><span class="stat-label">Attack λ</span><span class="stat-val">${t.atk.toFixed(2)}</span></div>
+      <div class="stat-row"><span class="stat-label">Defense mult.</span><span class="stat-val">${t.def.toFixed(2)}</span></div>
+      <div class="stat-row"><span class="stat-label">Pen win rate</span><span class="stat-val">${(t.pen_r*100).toFixed(0)}%</span></div>
+      <div class="stat-row"><span class="stat-label">Key players</span><span class="stat-val" style="font-size:10px;text-align:right;max-width:130px">${t.top_players||'—'}</span></div>
+      <div style="margin-top:8px;font-size:11px;color:#8888bb;">Tournament win probability</div>
+      <div style="font-size:18px;font-weight:800;color:#ffd700;">${winPct}</div>
+      <div class="win-bar"><div class="win-fill" style="width:${winFill}%"></div></div>
+    `;
+    panel.classList.add('visible');
+  });
+});
+
+map.on('click', (e) => {
+  if (!e.originalEvent.target.closest) return;
+  document.getElementById('info').classList.remove('visible');
+});
+</script>
+</body>
+</html>
+"""
+    st.components.v1.html(map_html, height=600, scrolling=False)
+
+    st.divider()
+    # Dense team stats table below map
+    st.markdown("#### All 32 teams — ranked by Elo")
+    tbl_rows = []
+    for _, row in df_map.sort_values("elo", ascending=False).iterrows():
+        tbl_rows.append({
+            "": row["flag"],
+            "Team":      row["team"],
+            "Elo":       int(row["elo"]),
+            "Atk λ":     round(row["atk"], 2),
+            "Def mult":  round(row["dfn"], 2),
+            "Pen %":     f"{row['pen_r']*100:.0f}%",
+            "Win % *":   f"{row['win_pct']:.1f}%" if row["win_pct"] is not None else "—",
+            "Key players": row["top_players"],
+        })
+    tbl_df = pd.DataFrame(tbl_rows).reset_index(drop=True)
+    tbl_df.insert(0, "#", range(1, len(tbl_df)+1))
+    st.dataframe(
+        tbl_df.style.background_gradient(cmap="YlOrBr", subset=["Elo"]),
+        use_container_width=True, hide_index=True
+    )
+    st.caption("* Win % requires running the simulation first (📊 tab)")
+
+# ════════════════════════════════════════════════════════════════════════════════
+# TAB 7 — WC History
+# ════════════════════════════════════════════════════════════════════════════════
+with tab_history:
+    st.subheader("🏆 FIFA World Cup — Complete History (1930–2022)")
+    st.caption("All 22 tournaments · Host · Winner · Runner-up · Score · Top scorer · Attendance")
+
+    WC_HISTORY = [
+        (1930,"Uruguay",     "🇺🇾","Uruguay",     "🇺🇾","Argentina",   "🇦🇷","4–2","G. Stábile (ARG) 8",   434000),
+        (1934,"Italy",       "🇮🇹","Italy",       "🇮🇹","Czechoslovakia","🇨🇿","2–1","O. Schiavio (ITA) 4",  363000),
+        (1938,"France",      "🇫🇷","Italy",       "🇮🇹","Hungary",     "🇭🇺","4–2","L. Zsengellér (HUN) 7",375000),
+        (1950,"Brazil",      "🇧🇷","Uruguay",     "🇺🇾","Brazil",      "🇧🇷","2–1","A. Ademir (BRA) 9",    1045000),
+        (1954,"Switzerland", "🇨🇭","West Germany","🇩🇪","Hungary",     "🇭🇺","3–2","S. Morlock (GER) 6",   768000),
+        (1958,"Sweden",      "🇸🇪","Brazil",      "🇧🇷","Sweden",      "🇸🇪","5–2","Just Fontaine (FRA) 13",868000),
+        (1962,"Chile",       "🇨🇱","Brazil",      "🇧🇷","Czechoslovakia","🇨🇿","3–1","V. Masek (TCH) 4",    893000),
+        (1966,"England",     "🏴󠁧󠁢󠁥󠁮󠁧󠁿","England",     "🏴󠁧󠁢󠁥󠁮󠁧󠁿","West Germany","🇩🇪","4–2","E. Hurst (ENG) 4",   1614677),
+        (1970,"Mexico",      "🇲🇽","Brazil",      "🇧🇷","Italy",       "🇮🇹","4–1","G. Müller (GER) 10",  1604065),
+        (1974,"West Germany","🇩🇪","West Germany","🇩🇪","Netherlands", "🇳🇱","2–1","G. Müller (GER) 4",   1865762),
+        (1978,"Argentina",   "🇦🇷","Argentina",   "🇦🇷","Netherlands", "🇳🇱","3–1","M. Kempes (ARG) 6",   1545791),
+        (1982,"Spain",       "🇪🇸","Italy",       "🇮🇹","West Germany","🇩🇪","3–1","P. Rossi (ITA) 6",    2109723),
+        (1986,"Mexico",      "🇲🇽","Argentina",   "🇦🇷","West Germany","🇩🇪","3–2","G. Lineker (ENG) 6",  2394031),
+        (1990,"Italy",       "🇮🇹","West Germany","🇩🇪","Argentina",   "🇦🇷","1–0","S. Schillaci (ITA) 6",2517348),
+        (1994,"USA",         "🇺🇸","Brazil",      "🇧🇷","Italy",       "🇮🇹","0–0 (3–2p)","H. Stoichkov (BUL) 6",3587538),
+        (1998,"France",      "🇫🇷","France",      "🇫🇷","Brazil",      "🇧🇷","3–0","D. Batistuta (ARG) 6",2785100),
+        (2002,"Korea/Japan", "🇰🇷🇯🇵","Brazil",   "🇧🇷","Germany",     "🇩🇪","2–0","R. Ronaldo (BRA) 8",  2705197),
+        (2006,"Germany",     "🇩🇪","Italy",       "🇮🇹","France",      "🇫🇷","1–1 (5–3p)","M. Klose (GER) 5",3359439),
+        (2010,"South Africa","🇿🇦","Spain",       "🇪🇸","Netherlands", "🇳🇱","1–0","T. Müller (GER) 5",   3178856),
+        (2014,"Brazil",      "🇧🇷","Germany",     "🇩🇪","Argentina",   "🇦🇷","1–0","J. Rodríguez (COL) 6",3429873),
+        (2018,"Russia",      "🇷🇺","France",      "🇫🇷","Croatia",     "🇭🇷","4–2","H. Kane (ENG) 6",     3031768),
+        (2022,"Qatar",       "🇶🇦","Argentina",   "🇦🇷","France",      "🇫🇷","3–3 (4–2p)","K. Mbappé (FRA) 8",3404252),
+    ]
+
+    # ── Summary stats ──────────────────────────────────────────────────────────
+    from collections import Counter
+    winner_counts = Counter(row[3] for row in WC_HISTORY)
+    top5_winners  = winner_counts.most_common(5)
+
+    m1,m2,m3,m4,m5 = st.columns(5)
+    for col, (nation, wins) in zip([m1,m2,m3,m4,m5], top5_winners):
+        flag = next((row[4] for row in WC_HISTORY if row[3]==nation), "")
+        col.metric(f"{flag} {nation}", f"{wins} titles")
+
+    st.divider()
+
+    # ── Filter controls ────────────────────────────────────────────────────────
+    fc1, fc2 = st.columns([3,2])
+    with fc1:
+        filter_team = st.selectbox("Filter by team (winner or runner-up)",
+                                   ["All"] + sorted({r[3] for r in WC_HISTORY} | {r[5] for r in WC_HISTORY}),
+                                   key="hist_team")
+    with fc2:
+        view_mode = st.radio("View", ["Table", "Timeline"], horizontal=True, key="hist_view")
+
+    rows_filtered = [r for r in WC_HISTORY
+                     if filter_team == "All" or r[3] == filter_team or r[5] == filter_team]
+
+    if view_mode == "Table":
+        hist_df = pd.DataFrame(rows_filtered, columns=[
+            "Year","Host","Host 🏳️","Winner","🏆","Runner-up","🥈",
+            "Final score","Top scorer","Attendance"
+        ])
+        display_df = hist_df[["Year","Host 🏳️","Host","🏆","Winner","🥈","Runner-up","Final score","Top scorer","Attendance"]].copy()
+        display_df["Attendance"] = display_df["Attendance"].apply(lambda x: f"{x:,}")
+        st.dataframe(
+            display_df.style
+              .background_gradient(cmap="YlOrBr", subset=["Attendance"])
+              .set_properties(**{"font-size":"12px"}),
+            use_container_width=True, hide_index=True
+        )
+    else:
+        # Timeline visual
+        timeline_html = '<div style="font-family:Segoe UI,sans-serif;padding:8px;">'
+        for row in reversed(rows_filtered):
+            yr, host, hflag, winner, wflag, runup, rflag, score, scorer, att = row
+            is_host_win = winner == host
+            badge = '🏠' if is_host_win else ''
+            timeline_html += (
+                '<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;'
+                'padding:12px;background:#161628;border:1px solid #2a2a4a;border-radius:10px;">'
+                # Year column
+                f'<div style="min-width:48px;text-align:center;">'
+                f'<div style="font-size:18px;font-weight:900;color:#ffd700;">{yr}</div>'
+                f'<div style="font-size:10px;color:#6666aa;">{hflag}</div>'
+                f'</div>'
+                # Content
+                '<div style="flex:1;">'
+                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+                f'<span style="font-size:20px;">{wflag}</span>'
+                f'<span style="font-size:15px;font-weight:800;color:#e8e8ff;">{winner}</span>'
+                f'<span style="background:#ffd700;color:#000;font-size:10px;font-weight:800;'
+                f'padding:1px 6px;border-radius:10px;">WINNER {badge}</span>'
+                f'</div>'
+                f'<div style="font-size:12px;color:#8888bb;margin-bottom:3px;">'
+                f'vs {rflag} {runup} &nbsp;|&nbsp; '
+                f'<span style="color:#c0c0c0;font-weight:700;">{score}</span>'
+                f'</div>'
+                f'<div style="font-size:11px;color:#6666aa;">🥅 {scorer}</div>'
+                f'<div style="font-size:11px;color:#6666aa;">👥 {att:,} attendance · Host: {host}</div>'
+                '</div>'
+                '</div>'
+            )
+        timeline_html += '</div>'
+        st.markdown(timeline_html, unsafe_allow_html=True)
+
+    st.divider()
+    # Win count bar chart
+    st.markdown("#### 🏆 All-time World Cup winners")
+    wc_chart = pd.DataFrame(winner_counts.most_common(), columns=["Country","Titles"])
+    st.bar_chart(wc_chart.set_index("Country"), use_container_width=True, color="#ffd700")
+
+# ════════════════════════════════════════════════════════════════════════════════
+# TAB 8 — Model explainer
+# ════════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════════
 with tab_model:
     if use_api and api_key and n_matches_used > 0:
