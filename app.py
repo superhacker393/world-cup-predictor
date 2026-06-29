@@ -1617,7 +1617,7 @@ map.on('click', (e) => {
             "Team":      row["team"],
             "Elo":       int(row["elo"]),
             "Atk λ":     round(row["atk"], 2),
-            "Def mult":  round(row["dfn"], 2),
+            "Def mult":  round(row["def"], 2),
             "Pen %":     f"{row['pen_r']*100:.0f}%",
             "Win % *":   f"{row['win_pct']:.1f}%" if row["win_pct"] is not None else "—",
             "Key players": row["top_players"],
