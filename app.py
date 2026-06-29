@@ -454,38 +454,141 @@ def api_get(url: str, api_key: str) -> dict | None:
 def fetch_live_data(api_key: str) -> dict | None:
     return api_get("https://v3.football.api-sports.io/status", api_key)
 
+def parse_account_info(status: dict) -> tuple[str, str, str]:
+    """
+    Extract plan name and request counts from /status response.
+    API-Football returns: {"response": {"account": {...}, "subscription": {...}, "requests": {...}}}
+    """
+    resp = (status or {}).get("response") or {}
+    # Handle both dict (v3) and list (some plan variants)
+    if isinstance(resp, list):
+        resp = resp[0] if resp else {}
+    plan    = (resp.get("subscription") or {}).get("plan", "unknown")
+    reqs    = (resp.get("requests") or {})
+    used    = str(reqs.get("current", "?"))
+    limit   = str(reqs.get("limit_day", "?"))
+    return plan, used, limit
+
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_recent_international_results(api_key: str) -> list[dict]:
+def fetch_recent_international_results(api_key: str) -> tuple[list[dict], list[str]]:
+    """
+    Returns (results, debug_lines) so caller can show what was fetched.
+    Tries multiple league/season combos and reports counts for each.
+    """
+    # League ID → season pairs. WC 2026 is league 1 season 2026 on API-Football.
+    # Also try friendlies (league 834 = international friendlies on some plans).
     league_seasons = [
-        (1, 2026), (1, 2022),
-        (4, 2024), (9, 2024),
-        (6, 2023), (10, 2023),
+        (1,   2026, "WC 2026"),
+        (1,   2022, "WC 2022"),
+        (4,   2024, "UEFA Euro 2024"),
+        (9,   2024, "Copa América 2024"),
+        (6,   2023, "AFCON 2023"),
+        (10,  2023, "AFC Asian Cup 2023"),
+        (834, 2025, "Intl Friendlies 2025"),
+        (834, 2024, "Intl Friendlies 2024"),
     ]
     cutoff  = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
     results = []
-    for lid, season in league_seasons:
+    debug   = []
+
+    for lid, season, label in league_seasons:
         url  = f"https://v3.football.api-sports.io/fixtures?league={lid}&season={season}&status=FT"
         data = api_get(url, api_key)
-        if not data:
-            continue
-        for fix in (data.get("response") or []):
-            date_str  = (fix.get("fixture") or {}).get("date", "")[:10]
-            if date_str < cutoff:
-                continue
-            home_name = (fix.get("teams") or {}).get("home", {}).get("name", "")
-            away_name = (fix.get("teams") or {}).get("away", {}).get("name", "")
-            goals_h   = (fix.get("goals") or {}).get("home")
-            goals_a   = (fix.get("goals") or {}).get("away")
-            home = API_NAME_MAP.get(home_name)
-            away = API_NAME_MAP.get(away_name)
-            if home and away and goals_h is not None and goals_a is not None:
-                results.append({"home": home, "away": away,
-                                 "goals_home": int(goals_h),
-                                 "goals_away": int(goals_a),
-                                 "date": date_str})
-    return results
+        raw_count = len((data or {}).get("response") or []) if data else 0
+        matched   = 0
+        if data:
+            for fix in (data.get("response") or []):
+                date_str  = (fix.get("fixture") or {}).get("date", "")[:10]
+                if date_str < cutoff:
+                    continue
+                home_name = (fix.get("teams") or {}).get("home", {}).get("name", "")
+                away_name = (fix.get("teams") or {}).get("away", {}).get("name", "")
+                goals_h   = (fix.get("goals") or {}).get("home")
+                goals_a   = (fix.get("goals") or {}).get("away")
+                home = API_NAME_MAP.get(home_name)
+                away = API_NAME_MAP.get(away_name)
+                if home and away and goals_h is not None and goals_a is not None:
+                    results.append({"home": home, "away": away,
+                                     "goals_home": int(goals_h),
+                                     "goals_away": int(goals_a),
+                                     "date": date_str})
+                    matched += 1
+        debug.append(f"{label} (league={lid} season={season}): {raw_count} fixtures returned, {matched} matched our teams")
 
-def compute_ratings_from_results(results: list[dict]) -> dict:
+    debug.append(f"Total usable results: {len(results)}")
+    return results, debug
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def discover_wc2026_league_id(api_key: str) -> tuple[int, str]:
+    """
+    Find the correct league ID for WC 2026 on this API plan.
+    Returns (league_id, debug_log).
+    """
+    debug = []
+
+    # Strategy A: search by name + season
+    for search_name in ["FIFA World Cup", "World Cup"]:
+        url  = f"https://v3.football.api-sports.io/leagues?name={search_name.replace(' ', '+')}&season=2026"
+        data = api_get(url, api_key)
+        resp = (data or {}).get("response") or []
+        debug.append(f"Search '{search_name}' season=2026: {len(resp)} results")
+        for item in resp:
+            lg  = (item.get("league") or {})
+            lid = lg.get("id")
+            nm  = lg.get("name", "")
+            debug.append(f"  → id={lid} name={nm}")
+            if lid:
+                debug.append(f"✅ Using league_id={lid}")
+                return lid, "\n".join(debug)
+
+    # Strategy B: check league id=1 for seasons 2026 and 2025
+    for try_season in [2026, 2025]:
+        url2  = f"https://v3.football.api-sports.io/leagues?id=1&season={try_season}"
+        data2 = api_get(url2, api_key)
+        resp2 = (data2 or {}).get("response") or []
+        debug.append(f"Check league id=1 season={try_season}: {len(resp2)} results")
+        for item in resp2:
+            seas_list = [s.get("year") for s in (item.get("seasons") or [])]
+            debug.append(f"  Seasons available: {seas_list}")
+        if resp2:
+            debug.append("✅ league_id=1 confirmed available")
+            return 1, "\n".join(debug)
+
+    # Strategy C: all Cup leagues for 2026
+    url3  = "https://v3.football.api-sports.io/leagues?type=Cup&season=2026"
+    data3 = api_get(url3, api_key)
+    resp3 = (data3 or {}).get("response") or []
+    debug.append(f"All Cup leagues season=2026: {len(resp3)} results")
+    for item in resp3:
+        lg   = (item.get("league") or {})
+        name = lg.get("name", "").lower()
+        lid  = lg.get("id")
+        debug.append(f"  id={lid} name={lg.get('name','')}")
+        if "world" in name and lid:
+            debug.append(f"✅ World Cup candidate found: id={lid}")
+            return lid, "\n".join(debug)
+
+    # Strategy D: raw dump of ALL leagues available on this plan
+    url4  = "https://v3.football.api-sports.io/leagues?current=true"
+    data4 = api_get(url4, api_key)
+    resp4 = (data4 or {}).get("response") or []
+    debug.append(f"All current leagues on plan: {len(resp4)} results")
+    world_candidates = []
+    for item in resp4:
+        lg   = (item.get("league") or {})
+        name = lg.get("name", "").lower()
+        lid  = lg.get("id")
+        if "world" in name or "fifa" in name:
+            world_candidates.append(f"id={lid} name={lg.get('name','')}")
+    if world_candidates:
+        debug.append("World/FIFA leagues found: " + ", ".join(world_candidates))
+    else:
+        debug.append("No World/FIFA leagues in current active leagues on this plan")
+        debug.append("⚠️ Your API plan may not include the 2026 World Cup")
+        debug.append("   Check: api-football.com/documentation → /leagues endpoint")
+
+    debug.append("Falling back to league_id=1 (default)")
+    return 1, "\n".join(debug)
     now = datetime.now()
     scored:   dict[str, list] = {t: [] for t in BASE_TEAMS}
     conceded: dict[str, list] = {t: [] for t in BASE_TEAMS}
@@ -903,26 +1006,22 @@ with st.sidebar:
             st.warning("⚠️ API connection failed.")
             api_status_log.append(("❌", "API connection", "fetch_live_data returned None — check your key"))
         else:
-            account = (status.get("response") or {})
-            plan    = account.get("subscription", {}).get("plan", "unknown")
-            reqs    = account.get("requests", {})
-            used    = reqs.get("current", "?")
-            limit   = reqs.get("limit_day", "?")
+            plan, used, limit = parse_account_info(status)
             api_status_log.append(("✅", "API connected", f"Plan: {plan} · Requests today: {used}/{limit}"))
             st.success("✅ API connected")
 
             # Step 2: match ratings
             with st.spinner("Fetching match results…"):
-                results_data = fetch_recent_international_results(api_key)
+                results_data, ratings_debug = fetch_recent_international_results(api_key)
             if results_data:
                 live_teams = compute_ratings_from_results(results_data)
                 TEAMS.update(live_teams)
                 n_matches_used = len(results_data)
                 ratings_source = f"Live API ({n_matches_used} matches)"
-                api_status_log.append(("✅", "Team ratings", f"{n_matches_used} international matches fetched and applied"))
+                api_status_log.append(("✅", "Team ratings", f"{n_matches_used} international matches fetched and applied\n" + "\n".join(ratings_debug)))
                 st.success(f"✅ Ratings: {n_matches_used} matches")
             else:
-                api_status_log.append(("⚠️", "Team ratings", "0 matches returned — check league/season availability on your plan"))
+                api_status_log.append(("⚠️", "Team ratings", "0 matches returned\n" + "\n".join(ratings_debug)))
 
             # Step 3: discover WC 2026 league ID
             with st.spinner("Finding WC 2026 league ID…"):
@@ -1357,7 +1456,12 @@ with tab_api:
                 st.markdown(f"## {icon}")
             with col_body:
                 st.markdown(f"**{label}**")
-                st.caption(detail)
+                # First line as caption, rest in expander if multi-line
+                lines = detail.strip().split("\n")
+                st.caption(lines[0])
+                if len(lines) > 1:
+                    with st.expander("Full detail"):
+                        st.code("\n".join(lines[1:]))
 
         st.divider()
         st.markdown("### League ID discovery log")
