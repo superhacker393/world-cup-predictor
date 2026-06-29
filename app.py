@@ -514,16 +514,61 @@ def compute_ratings_from_results(results: list[dict]) -> dict:
             new[team] = base
     return new
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def fetch_wc2026_top_scorers(api_key: str) -> tuple[dict, str]:
+@st.cache_data(ttl=3600, show_spinner=False)
+def discover_wc2026_league_id(api_key: str) -> tuple[int, str]:
     """
-    Multi-strategy scorer fetch. Returns (squads_dict, debug_message).
-    Strategy 1: /players/topscorers for league=1 season=2026
-    Strategy 2: /players/scorers (some API plans use this endpoint)
-    Strategy 3: Pull goals from fixture events for all WC 2026 matches
-    Each strategy builds {team: [(player, goal_share), ...]}
+    Search the API for the correct league ID for the 2026 World Cup.
+    Returns (league_id, debug_info).
+    """
+    debug = []
+    # Try searching by name
+    url  = "https://v3.football.api-sports.io/leagues?name=FIFA+World+Cup&season=2026"
+    data = api_get(url, api_key)
+    resp = (data or {}).get("response") or []
+    debug.append(f"League search (FIFA World Cup 2026): {len(resp)} results")
+    for item in resp:
+        lg   = (item.get("league") or {})
+        seas = (item.get("seasons") or [])
+        lid  = lg.get("id")
+        name = lg.get("name","")
+        debug.append(f"  Found: id={lid} name={name} seasons={[s.get('year') for s in seas]}")
+        if lid:
+            return lid, "\n".join(debug)
+
+    # Try league ID 1 with different season spellings
+    for try_season in [2026, 2025]:
+        url2  = f"https://v3.football.api-sports.io/leagues?id=1&season={try_season}"
+        data2 = api_get(url2, api_key)
+        resp2 = (data2 or {}).get("response") or []
+        debug.append(f"League id=1 season={try_season}: {len(resp2)} results")
+        if resp2:
+            return 1, "\n".join(debug)
+
+    # Broader search — list all active leagues with "world" in name
+    url3  = "https://v3.football.api-sports.io/leagues?type=Cup&season=2026"
+    data3 = api_get(url3, api_key)
+    resp3 = (data3 or {}).get("response") or []
+    debug.append(f"Cup leagues season=2026: {len(resp3)} results")
+    for item in resp3:
+        lg   = (item.get("league") or {})
+        name = lg.get("name", "").lower()
+        lid  = lg.get("id")
+        if "world" in name:
+            debug.append(f"  World Cup candidate: id={lid} name={lg.get('name')}")
+            return lid, "\n".join(debug)
+
+    debug.append("Could not auto-detect WC 2026 league ID")
+    return 1, "\n".join(debug)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_wc2026_top_scorers(api_key: str, league_id: int) -> tuple[dict, str]:
+    """
+    Multi-strategy scorer fetch using the correct league ID.
+    Returns (squads_dict, debug_message).
     """
     debug_lines = []
+    debug_lines.append(f"Using league_id={league_id}, season={WC2026_SEASON}")
 
     def build_squads(team_goals: dict) -> dict:
         squads: dict = {}
@@ -541,10 +586,10 @@ def fetch_wc2026_top_scorers(api_key: str) -> tuple[dict, str]:
 
     # ── Strategy 1: /players/topscorers ──────────────────────────────────────
     url1  = (f"https://v3.football.api-sports.io/players/topscorers"
-             f"?league={WC2026_LEAGUE_ID}&season={WC2026_SEASON}")
+             f"?league={league_id}&season={WC2026_SEASON}")
     data1 = api_get(url1, api_key)
     resp1 = (data1 or {}).get("response") or []
-    debug_lines.append(f"Strategy 1 (/topscorers): {len(resp1)} entries returned")
+    debug_lines.append(f"Strategy 1 (/topscorers): {len(resp1)} entries")
     team_goals_1: dict = defaultdict(list)
     for entry in resp1:
         p        = entry.get("player") or {}
@@ -556,21 +601,21 @@ def fetch_wc2026_top_scorers(api_key: str) -> tuple[dict, str]:
         if team and name and goals > 0:
             team_goals_1[team].append((name, goals))
     if team_goals_1:
-        debug_lines.append(f"Strategy 1 success: {len(team_goals_1)} teams with scorer data")
+        debug_lines.append(f"✅ Strategy 1 success: {len(team_goals_1)} teams")
         return build_squads(team_goals_1), "\n".join(debug_lines)
-    debug_lines.append("Strategy 1 returned no goal data — trying Strategy 2")
+    debug_lines.append("Strategy 1: no goals found → trying Strategy 2")
 
-    # ── Strategy 2: /players with goals filter ────────────────────────────────
-    url2  = (f"https://v3.football.api-sports.io/players"
-             f"?league={WC2026_LEAGUE_ID}&season={WC2026_SEASON}&page=1")
-    data2 = api_get(url2, api_key)
-    resp2 = (data2 or {}).get("response") or []
-    total_pages = (data2 or {}).get("paging", {}).get("total", 1) if data2 else 1
-    for pg in range(2, min(total_pages + 1, 6)):
+    # ── Strategy 2: /players (full list, scan for goals) ─────────────────────
+    url2      = (f"https://v3.football.api-sports.io/players"
+                 f"?league={league_id}&season={WC2026_SEASON}&page=1")
+    data2     = api_get(url2, api_key)
+    resp2     = (data2 or {}).get("response") or []
+    total_pg  = (data2 or {}).get("paging", {}).get("total", 1) if data2 else 1
+    for pg in range(2, min(total_pg + 1, 6)):
         more = api_get(url2.replace("page=1", f"page={pg}"), api_key)
         if more and more.get("response"):
             resp2.extend(more["response"])
-    debug_lines.append(f"Strategy 2 (/players): {len(resp2)} player entries returned")
+    debug_lines.append(f"Strategy 2 (/players): {len(resp2)} player entries across {total_pg} pages")
     team_goals_2: dict = defaultdict(list)
     for entry in resp2:
         p        = entry.get("player") or {}
@@ -582,47 +627,53 @@ def fetch_wc2026_top_scorers(api_key: str) -> tuple[dict, str]:
         if team and name and goals > 0:
             team_goals_2[team].append((name, goals))
     if team_goals_2:
-        debug_lines.append(f"Strategy 2 success: {len(team_goals_2)} teams with scorer data")
+        debug_lines.append(f"✅ Strategy 2 success: {len(team_goals_2)} teams")
         return build_squads(team_goals_2), "\n".join(debug_lines)
-    debug_lines.append("Strategy 2 returned no goal data — trying Strategy 3 (fixture events)")
+    debug_lines.append("Strategy 2: no goals found → trying Strategy 3 (fixture events)")
 
-    # ── Strategy 3: Pull goals from fixture events ────────────────────────────
+    # ── Strategy 3: goal events from each completed fixture ───────────────────
     fix_url  = (f"https://v3.football.api-sports.io/fixtures"
-                f"?league={WC2026_LEAGUE_ID}&season={WC2026_SEASON}&status=FT")
+                f"?league={league_id}&season={WC2026_SEASON}&status=FT")
     fix_data = api_get(fix_url, api_key)
     fixtures = (fix_data or {}).get("response") or []
-    debug_lines.append(f"Strategy 3: {len(fixtures)} completed fixtures found")
-    team_goals_3: dict = defaultdict(list)
+    debug_lines.append(f"Strategy 3: {len(fixtures)} completed fixtures")
     player_goals_raw: dict = defaultdict(lambda: {"goals": 0, "team": ""})
     for fix in fixtures:
-        fix_id    = (fix.get("fixture") or {}).get("id", "")
+        fix_id = (fix.get("fixture") or {}).get("id", "")
         if not fix_id:
             continue
-        ev_url  = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
-        ev_data = api_get(ev_url, api_key)
+        ev_data = api_get(
+            f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}",
+            api_key)
         for ev in (ev_data or {}).get("response") or []:
             if (ev.get("type") or "").lower() != "goal":
                 continue
             detail = (ev.get("detail") or "").lower()
             if "own goal" in detail or "penalty" in detail:
                 continue
-            player_name = (ev.get("player") or {}).get("name", "")
-            team_api    = (ev.get("team") or {}).get("name", "")
-            team        = API_NAME_MAP.get(team_api)
-            if player_name and team:
-                player_goals_raw[player_name]["goals"] += 1
-                player_goals_raw[player_name]["team"]   = team
-    for player_name, info in player_goals_raw.items():
+            pname    = (ev.get("player") or {}).get("name", "")
+            team_api = (ev.get("team") or {}).get("name", "")
+            team     = API_NAME_MAP.get(team_api)
+            if pname and team:
+                player_goals_raw[pname]["goals"] += 1
+                player_goals_raw[pname]["team"]   = team
+    team_goals_3: dict = defaultdict(list)
+    for pname, info in player_goals_raw.items():
         if info["goals"] > 0 and info["team"]:
-            team_goals_3[info["team"]].append((player_name, info["goals"]))
-    debug_lines.append(f"Strategy 3: {sum(len(v) for v in team_goals_3.values())} player-goal records from events")
+            team_goals_3[info["team"]].append((pname, info["goals"]))
+    total_goals_found = sum(len(v) for v in team_goals_3.values())
+    debug_lines.append(f"Strategy 3: {total_goals_found} player-goal records from events")
     if team_goals_3:
-        debug_lines.append(f"Strategy 3 success: {len(team_goals_3)} teams with scorer data")
+        debug_lines.append(f"✅ Strategy 3 success: {len(team_goals_3)} teams")
         return build_squads(team_goals_3), "\n".join(debug_lines)
 
-    debug_lines.append("All 3 strategies returned no data — WC 2026 may not have started yet or league ID needs updating")
+    debug_lines.append("❌ All strategies returned 0 data.")
+    debug_lines.append("Possible causes:")
+    debug_lines.append("  • WC 2026 group stage may not have produced scorer data yet on this API plan")
+    debug_lines.append(f"  • Confirmed league_id={league_id} — check above discovery log if wrong")
+    debug_lines.append("  • Your API plan may not include player stats for this competition")
+    debug_lines.append("  • Try: https://v3.football.api-sports.io/leagues?id=" + str(league_id) + "&season=2026 in browser with your key")
     return {}, "\n".join(debug_lines)
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_player_cards_from_api(api_key: str) -> list[tuple]:
     base_url = (f"https://v3.football.api-sports.io/players"
@@ -855,8 +906,10 @@ with st.sidebar:
                 n_matches_used = len(results_data)
                 ratings_source = f"Live API ({n_matches_used} matches)"
                 st.success(f"✅ Ratings updated from {n_matches_used} matches")
+            with st.spinner("Detecting WC 2026 league ID…"):
+                wc_league_id, league_debug = discover_wc2026_league_id(api_key)
             with st.spinner("Fetching WC 2026 scorer data…"):
-                api_squads, scorer_debug = fetch_wc2026_top_scorers(api_key)
+                api_squads, scorer_debug = fetch_wc2026_top_scorers(api_key, wc_league_id)
             if api_squads:
                 SQUADS.update(api_squads)
                 squads_source = f"Live WC scorers ({len(api_squads)} teams)"
@@ -864,7 +917,7 @@ with st.sidebar:
             else:
                 st.warning("⚠️ No live scorer data found — using built-in squads.")
             with st.expander("🔍 Scorer API debug log", expanded=not api_squads):
-                st.code(scorer_debug)
+                st.code(f"=== League ID discovery ===\n{league_debug}\n\n=== Scorer fetch ===\n{scorer_debug}")
     else:
         st.info("🔵 Add an API key to enable live ratings.")
 
