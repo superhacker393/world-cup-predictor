@@ -880,9 +880,13 @@ st.title("🏆 2026 World Cup Simulator")
 st.caption("Poisson goal model · Live API ratings · Historical penalty rates · Golden Boot · Monte Carlo")
 
 # Module-scope defaults so all tabs can read them even without API
-ratings_source = "Built-in (June 2026)"
-n_matches_used = 0
-squads_source  = "Built-in squad data"
+ratings_source  = "Built-in (June 2026)"
+n_matches_used  = 0
+squads_source   = "Built-in squad data"
+api_status_log: list[tuple[str,str,str]] = []  # (icon, label, detail)
+scorer_debug_log = ""
+league_debug_log = ""
+wc_league_id_found = WC2026_LEAGUE_ID
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -892,12 +896,22 @@ with st.sidebar:
     use_api = st.checkbox("Enable live API", value=False)
 
     if use_api and api_key:
-        with st.spinner("Connecting to API…"):
+        # Step 1: connection test
+        with st.spinner("Connecting…"):
             status = fetch_live_data(api_key)
         if not status:
-            st.warning("⚠️ API connection failed — using built-in data.")
+            st.warning("⚠️ API connection failed.")
+            api_status_log.append(("❌", "API connection", "fetch_live_data returned None — check your key"))
         else:
+            account = (status.get("response") or {})
+            plan    = account.get("subscription", {}).get("plan", "unknown")
+            reqs    = account.get("requests", {})
+            used    = reqs.get("current", "?")
+            limit   = reqs.get("limit_day", "?")
+            api_status_log.append(("✅", "API connected", f"Plan: {plan} · Requests today: {used}/{limit}"))
             st.success("✅ API connected")
+
+            # Step 2: match ratings
             with st.spinner("Fetching match results…"):
                 results_data = fetch_recent_international_results(api_key)
             if results_data:
@@ -905,21 +919,30 @@ with st.sidebar:
                 TEAMS.update(live_teams)
                 n_matches_used = len(results_data)
                 ratings_source = f"Live API ({n_matches_used} matches)"
-                st.success(f"✅ Ratings updated from {n_matches_used} matches")
-            with st.spinner("Detecting WC 2026 league ID…"):
-                wc_league_id, league_debug = discover_wc2026_league_id(api_key)
-            with st.spinner("Fetching WC 2026 scorer data…"):
-                api_squads, scorer_debug = fetch_wc2026_top_scorers(api_key, wc_league_id)
+                api_status_log.append(("✅", "Team ratings", f"{n_matches_used} international matches fetched and applied"))
+                st.success(f"✅ Ratings: {n_matches_used} matches")
+            else:
+                api_status_log.append(("⚠️", "Team ratings", "0 matches returned — check league/season availability on your plan"))
+
+            # Step 3: discover WC 2026 league ID
+            with st.spinner("Finding WC 2026 league ID…"):
+                wc_league_id_found, league_debug_log = discover_wc2026_league_id(api_key)
+            api_status_log.append(("🔍", "League ID discovery", f"Using league_id={wc_league_id_found}"))
+
+            # Step 4: scorer data
+            with st.spinner("Fetching scorer data…"):
+                api_squads, scorer_debug_log = fetch_wc2026_top_scorers(api_key, wc_league_id_found)
             if api_squads:
                 SQUADS.update(api_squads)
                 squads_source = f"Live WC scorers ({len(api_squads)} teams)"
-                st.success(f"✅ Scorer data: {len(api_squads)} teams")
+                api_status_log.append(("✅", "Scorer data", f"{len(api_squads)} teams · {sum(len(v) for v in api_squads.values())} player records loaded"))
+                st.success(f"✅ Scorers: {len(api_squads)} teams")
             else:
-                st.warning("⚠️ No live scorer data found — using built-in squads.")
-            with st.expander("🔍 Scorer API debug log", expanded=not api_squads):
-                st.code(f"=== League ID discovery ===\n{league_debug}\n\n=== Scorer fetch ===\n{scorer_debug}")
+                api_status_log.append(("❌", "Scorer data", "0 records returned — see API Status tab for full debug log"))
+                st.warning("⚠️ No scorer data — see API Status tab")
     else:
         st.info("🔵 Add an API key to enable live ratings.")
+        api_status_log.append(("🔵", "API disabled", "Enable live API and enter a key to connect"))
 
     st.divider()
     st.subheader("🏟️ Host-nation advantage")
@@ -945,9 +968,9 @@ with st.sidebar:
     st.caption(f"**Scorers:** {squads_source}")
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_model = st.tabs([
+tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_model, tab_api = st.tabs([
     "📊 Simulation", "👟 Golden Boot", "🃏 Player Cards",
-    "⚔️ Head-to-head", "🗓️ R32 Bracket", "🔬 How it works",
+    "⚔️ Head-to-head", "🗓️ R32 Bracket", "🔬 How it works", "🔌 API Status",
 ])
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1304,3 +1327,73 @@ ratings come from live WC 2026 match performance (match ratings × 10).
 | Golden Boot | Goal-share weighted ✅ | Shot-level xG per player |
 | Bracket | Real 2026 WC ✅ | Real 2026 WC ✅ |
 """)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# TAB 7 — API Status
+# ════════════════════════════════════════════════════════════════════════════════
+with tab_api:
+    st.subheader("🔌 API Status — Live diagnostics")
+    st.caption("Every step of the API connection is shown here with pass/fail and detail.")
+
+    if not use_api or not api_key:
+        st.info("Enable the live API checkbox and enter your API key in the sidebar to see diagnostics here.")
+    else:
+        # Summary status cards
+        all_ok = all(icon == "✅" for icon, _, _ in api_status_log)
+        if all_ok:
+            st.success("✅ All API checks passed — live data is active.")
+        else:
+            any_ok = any(icon == "✅" for icon, _, _ in api_status_log)
+            if any_ok:
+                st.warning("⚠️ API partially working — some data is live, some is built-in.")
+            else:
+                st.error("❌ API not returning data — all built-in data is being used.")
+
+        st.divider()
+        st.markdown("### Step-by-step results")
+        for icon, label, detail in api_status_log:
+            col_icon, col_body = st.columns([1, 10])
+            with col_icon:
+                st.markdown(f"## {icon}")
+            with col_body:
+                st.markdown(f"**{label}**")
+                st.caption(detail)
+
+        st.divider()
+        st.markdown("### League ID discovery log")
+        st.code(league_debug_log if league_debug_log else "Not run yet — enable API above.")
+
+        st.divider()
+        st.markdown("### Scorer fetch log")
+        st.code(scorer_debug_log if scorer_debug_log else "Not run yet — enable API above.")
+
+        st.divider()
+        st.markdown("### What to do if scorers return 0")
+        st.markdown("""
+**Check these in order:**
+
+1. **Verify the league ID** — look at the League ID discovery log above. If it says "Could not auto-detect", your API plan may not have the 2026 World Cup indexed yet. Try manually testing this URL in your browser (replace `YOUR_KEY`):
+   ```
+   https://v3.football.api-sports.io/leagues?name=FIFA+World+Cup&season=2026&X-RapidAPI-Key=YOUR_KEY
+   ```
+
+2. **Check your API plan** — free plans on api-football.com often exclude player statistics and live World Cup data. You need at least the **Starter** plan for player stats.
+
+3. **Check requests remaining** — the connection step above shows `Requests today: X/Y`. If you're at the limit, all calls return empty.
+
+4. **Tournament timing** — if matches are still in the group stage, `/topscorers` may not be populated yet. Strategy 3 (fixture events) should still work once matches have finished.
+
+5. **Copy this URL and test it directly** in your browser with your key as the header — if it returns data there but not here, it's a caching issue (click the refresh button in the sidebar to clear cache):
+   ```
+   https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT
+   ```
+""")
+
+        if st.button("🔄 Clear API cache and retry", key="clear_cache"):
+            fetch_live_data.clear()
+            fetch_recent_international_results.clear()
+            discover_wc2026_league_id.clear()
+            fetch_wc2026_top_scorers.clear()
+            fetch_player_cards_from_api.clear()
+            st.success("Cache cleared — reload the page to re-fetch all data.")
+            st.rerun()
