@@ -1624,10 +1624,7 @@ map.on('click', (e) => {
         })
     tbl_df = pd.DataFrame(tbl_rows).reset_index(drop=True)
     tbl_df.insert(0, "#", range(1, len(tbl_df)+1))
-    st.dataframe(
-        tbl_df.style.background_gradient(cmap="YlOrBr", subset=["Elo"]),
-        use_container_width=True, hide_index=True
-    )
+    st.dataframe(tbl_df, use_container_width=True, hide_index=True)
     st.caption("* Win % requires running the simulation first (📊 tab)")
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1692,11 +1689,11 @@ with tab_history:
             "Final score","Top scorer","Attendance"
         ])
         display_df = hist_df[["Year","Host 🏳️","Host","🏆","Winner","🥈","Runner-up","Final score","Top scorer","Attendance"]].copy()
-        display_df["Attendance"] = display_df["Attendance"].apply(lambda x: f"{x:,}")
+        # Keep Attendance numeric so gradient works, format display with comma separator
         st.dataframe(
             display_df.style
               .background_gradient(cmap="YlOrBr", subset=["Attendance"])
-              .set_properties(**{"font-size":"12px"}),
+              .format({"Attendance": "{:,}"}),
             use_container_width=True, hide_index=True
         )
     else:
