@@ -11,42 +11,52 @@ st.set_page_config(page_title="2026 World Cup Simulator", page_icon="🏆", layo
 
 st.markdown("""
 <style>
-/* Clean dark background, no gradients */
 [data-testid="stAppViewContainer"] { background: #111; }
 [data-testid="stSidebar"]          { background: #0e0e0e; border-right: 1px solid #222; }
 [data-testid="stHeader"]           { background: transparent; }
 
-/* Metrics — plain, no card borders */
-[data-testid="metric-container"]   { background: transparent; padding: 4px 0 !important; }
-[data-testid="stMetricLabel"]      { color: #666 !important; font-size: 11px !important; text-transform: none; letter-spacing: 0; }
-[data-testid="stMetricValue"]      { color: #eee !important; font-size: 1.4rem !important; font-weight: 700 !important; }
+/* Tighten vertical spacing throughout */
+.block-container { padding-top: 1.2rem !important; padding-bottom: 1rem !important; }
+[data-testid="stVerticalBlock"] { gap: 0.4rem !important; }
+div[data-testid="column"] { padding: 0 4px !important; }
 
-/* Tabs — simple underline */
-[data-testid="stTabs"] button                     { color: #666; font-size: 13px; font-weight: 500; }
-[data-testid="stTabs"] button[aria-selected="true"] { color: #eee !important; border-bottom: 2px solid #eee !important; }
+/* Metrics — compact, dense */
+[data-testid="metric-container"]   { background: #161616; border: 1px solid #242424; border-radius: 4px; padding: 6px 10px !important; }
+[data-testid="stMetricLabel"]      { color: #777 !important; font-size: 10px !important; }
+[data-testid="stMetricValue"]      { color: #eee !important; font-size: 1.15rem !important; font-weight: 700 !important; }
+[data-testid="stMetricDelta"]      { font-size: 10px !important; }
 
-/* Headings — plain white */
-h1 { color: #eee !important; font-weight: 800 !important; font-size: 1.5rem !important; -webkit-text-fill-color: #eee !important; background: none !important; }
-h2, h3 { color: #ccc !important; font-weight: 600 !important; }
+/* Tabs — compact */
+[data-testid="stTabs"] button                      { color: #666; font-size: 12px; font-weight: 500; padding: 6px 10px; }
+[data-testid="stTabs"] button[aria-selected="true"]  { color: #eee !important; border-bottom: 2px solid #888 !important; }
+[data-testid="stTabs"] { gap: 0; }
 
-/* Divider */
-hr { border-color: #222 !important; }
+/* Headings */
+h1 { color: #eee !important; font-weight: 800 !important; font-size: 1.35rem !important; margin-bottom: 0 !important; }
+h2 { color: #ccc !important; font-weight: 700 !important; font-size: 1.05rem !important; }
+h3, h4 { color: #aaa !important; font-weight: 600 !important; font-size: 0.92rem !important; }
 
-/* Buttons */
+hr { border-color: #222 !important; margin: 0.6rem 0 !important; }
+
 [data-testid="baseButton-primary"] {
-    background: #eee !important;
-    color: #111 !important;
-    font-weight: 700 !important;
-    border: none !important;
-    border-radius: 6px !important;
+    background: #ddd !important; color: #111 !important; font-weight: 700 !important;
+    border: none !important; border-radius: 4px !important; padding: 0.35rem 1rem !important;
 }
 
-/* Sidebar text */
-[data-testid="stSidebarContent"] { color: #aaa; }
-[data-testid="stCaptionContainer"] { color: #555 !important; }
+[data-testid="stSidebarContent"]   { color: #aaa; }
+[data-testid="stCaptionContainer"] { color: #555 !important; font-size: 11px !important; }
+[data-testid="stDataFrame"]        { border: 1px solid #222; border-radius: 4px; font-size: 12px; }
 
-/* Dataframe */
-[data-testid="stDataFrame"] { border: 1px solid #222; border-radius: 6px; }
+/* Sliders / selects more compact */
+[data-testid="stSlider"] { padding-top: 2px; padding-bottom: 2px; }
+label[data-testid="stWidgetLabel"] p { font-size: 12px !important; color: #999 !important; }
+
+/* Dense info strip */
+.densebar { display:flex; gap:0; border:1px solid #242424; border-radius:4px; overflow:hidden; margin-bottom:8px; }
+.densebar > div { flex:1; padding:6px 10px; border-right:1px solid #242424; }
+.densebar > div:last-child { border-right:none; }
+.densebar .dl { font-size:9px; color:#666; text-transform:uppercase; letter-spacing:.03em; }
+.densebar .dv { font-size:14px; color:#ddd; font-weight:700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -331,7 +341,6 @@ PLAYER_CARDS_FALLBACK = [
     ("L. Yamal",          "Spain",       "RW",  87, 92, 81, 81, 91, 30, 62),
     ("D. Olmo",           "Spain",       "CAM", 86, 79, 81, 85, 87, 62, 73),
     ("D. Carvajal",       "Spain",       "RB",  86, 76, 65, 83, 79, 83, 77),
-    ("J. Bellingham",     "Spain",       "CM",  88, 80, 85, 84, 87, 74, 85),
     ("A. Laporte",        "Spain",       "CB",  85, 69, 51, 79, 73, 87, 81),
     ("M. Cucurella",      "Spain",       "LB",  83, 76, 56, 76, 77, 80, 78),
     ("U. Simón",          "Spain",       "GK",  85,  0,  0,  0,  0,  0,  0),
@@ -1144,6 +1153,17 @@ def h2h_win_prob(team_a: str, team_b: str, n: int = 20_000) -> dict:
 st.title("🏆 2026 World Cup Simulator")
 st.caption("Poisson model · Monte Carlo · Elo ratings · Live API · USA / Mexico / Canada")
 
+st.markdown(f"""
+<div class="densebar">
+  <div><div class="dl">Teams</div><div class="dv">{len(BASE_TEAMS)}</div></div>
+  <div><div class="dl">R32 matches</div><div class="dv">{len(R32_BRACKET)}</div></div>
+  <div><div class="dl">Player cards</div><div class="dv">{len(PLAYER_CARDS_FALLBACK)}</div></div>
+  <div><div class="dl">WC titles tracked</div><div class="dv">22</div></div>
+  <div><div class="dl">Top Elo</div><div class="dv">{max(BASE_TEAMS.values(), key=lambda x:x['elo'])['flag']} {max(BASE_TEAMS, key=lambda k:BASE_TEAMS[k]['elo'])}</div></div>
+  <div><div class="dl">Hosts</div><div class="dv">🇺🇸 🇲🇽 🇨🇦</div></div>
+</div>
+""", unsafe_allow_html=True)
+
 # Module-scope defaults so all tabs can read them even without API
 ratings_source  = "Built-in (June 2026)"
 n_matches_used  = 0
@@ -1225,8 +1245,13 @@ with st.sidebar:
             st.caption(f"{TEAMS.get(boost_team,{}).get('flag','')} {boost_team} ×{boost_val:.2f}")
 
     st.divider()
-    st.caption(f"**Ratings:** {ratings_source}")
-    st.caption(f"**Scorers:** {squads_source}")
+    st.caption(f"**Ratings** {ratings_source}")
+    st.caption(f"**Scorers** {squads_source}")
+    n_boosted = sum(1 for v in TEAM_BOOST.values() if v != 1.0)
+    n_host_adj = sum(1 for k,v in HOST_ADVANTAGE.items() if v != DEFAULT_HOST_ADVANTAGE.get(k))
+    st.caption(f"**Active overrides** {n_boosted} boost · {n_host_adj} host adj")
+    st.caption(f"**Squad data** {sum(len(v) for v in SQUADS.values())} player-share records")
+    st.caption(f"**Penalty data** {len(PENALTY_WIN_RATE)} teams tracked")
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_map, tab_history, tab_model, tab_api = st.tabs([
@@ -1271,22 +1296,49 @@ with tab_sim:
         st.success(f"{top['Flag']} **{top['Team']}** — predicted champion "
                    f"({top['Win %']:.1f}%{runner_str})")
 
-        col_t, col_c = st.columns([3, 2], gap="large")
+        # Dense metric row — extra context at a glance
+        n_teams_with_chance = (df["Wins"] > 0).sum()
+        favourite_implied_odds = 100 / top["Win %"] if top["Win %"] > 0 else 0
+        top5_share = df.head(5)["Win %"].sum()
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Sims run", f"{n_sims:,}")
+        m2.metric("Teams w/ a title", int(n_teams_with_chance))
+        m3.metric("Top-5 share", f"{top5_share:.1f}%")
+        m4.metric("Favourite odds", f"{favourite_implied_odds:.1f}:1")
+        m5.metric("Field spread", f"{df['Win %'].std():.2f}σ")
+
+        col_t, col_c = st.columns([3, 2], gap="medium")
         with col_t:
-            st.markdown("#### Championship probabilities")
+            st.markdown("#### Championship probabilities — full field")
             st.dataframe(
-                df[["Rank","Flag","Team","Elo","Win %"]]
-                .style.format({"Win %":"{:.2f}%","Elo":"{:,}"})
+                df[["Rank","Flag","Team","Elo","Wins","Win %"]]
+                .style.format({"Win %":"{:.2f}%","Elo":"{:,}","Wins":"{:,}"})
                 .background_gradient(cmap="Greens", subset=["Win %"]),
-                use_container_width=True, hide_index=True)
+                use_container_width=True, hide_index=True, height=420)
         with col_c:
             st.markdown("#### Top 12 win probability")
             st.bar_chart(df.head(12).set_index("Team")[["Win %"]], use_container_width=True)
+            st.markdown("#### By confederation (rough)")
+            conf_map = {
+                "France":"UEFA","Spain":"UEFA","England":"UEFA","Germany":"UEFA","Portugal":"UEFA",
+                "Netherlands":"UEFA","Belgium":"UEFA","Switzerland":"UEFA","Austria":"UEFA",
+                "Norway":"UEFA","Sweden":"UEFA","Croatia":"UEFA","Bosnia":"UEFA",
+                "Argentina":"CONMEBOL","Brazil":"CONMEBOL","Colombia":"CONMEBOL",
+                "Ecuador":"CONMEBOL","Paraguay":"CONMEBOL","Uruguay":"CONMEBOL",
+                "Morocco":"CAF","Senegal":"CAF","Egypt":"CAF","Ghana":"CAF",
+                "Ivory Coast":"CAF","South Africa":"CAF",
+                "USA":"CONCACAF","Mexico":"CONCACAF","Canada":"CONCACAF",
+                "Japan":"AFC","Iran":"AFC","Uzbekistan":"AFC","Australia":"AFC",
+                "Cape Verde":"CAF",
+            }
+            df["Confed"] = df["Team"].map(conf_map).fillna("—")
+            conf_share = df.groupby("Confed")["Win %"].sum().sort_values(ascending=False)
+            st.bar_chart(conf_share, use_container_width=True)
 
         st.session_state["gb_prob"]          = gb_prob
         st.session_state["n_sims"]            = n_sims
         st.session_state["last_win_counts"]   = win_counts
-        st.info("👟 Switch to the Golden Boot tab for top scorer predictions.")
+        st.caption("👟 Switch to the Golden Boot tab for top scorer predictions · 🗺️ Map tab now shows live win % per team")
 
 # ════════════════════════════════════════════════════════════════════════════════
 # TAB 2 — Golden Boot
