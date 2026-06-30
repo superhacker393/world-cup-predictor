@@ -205,6 +205,127 @@ R32_BRACKET = [
     ("Germany",     "Paraguay",   "Jul 4"),
 ]
 
+# ── Live WC 2026 results ───────────────────────────────────────────────────────
+@st.cache_data(ttl=300, show_spinner=False)   # refresh every 5 minutes
+def fetch_wc2026_results(api_key: str, league_id: int) -> tuple[list[dict], str]:
+    """
+    Fetch all completed AND live WC 2026 fixtures.
+    Returns (matches, debug_log).
+    Each match: {home, away, goals_home, goals_away, status, date, fixture_id, winner}
+    status: 'FT' | 'AET' | 'PEN' | 'LIVE' | 'NS' (not started)
+    """
+    debug = []
+    finished_statuses = {"FT", "AET", "PEN", "AWD", "WO"}
+
+    url  = (f"https://v3.football.api-sports.io/fixtures"
+            f"?league={league_id}&season={WC2026_SEASON}")
+    data = api_get(url, api_key)
+    raw  = (data or {}).get("response") or []
+    debug.append(f"Total fixtures returned: {len(raw)}")
+
+    matches = []
+    for fix in raw:
+        f        = fix.get("fixture") or {}
+        teams    = fix.get("teams") or {}
+        goals    = fix.get("goals") or {}
+        score    = fix.get("score") or {}
+        status   = (f.get("status") or {}).get("short", "NS")
+        date_str = f.get("date", "")[:10]
+        fix_id   = f.get("id", "")
+
+        home_api = (teams.get("home") or {}).get("name", "")
+        away_api = (teams.get("away") or {}).get("name", "")
+        home     = API_NAME_MAP.get(home_api, home_api)
+        away     = API_NAME_MAP.get(away_api, away_api)
+        gh       = goals.get("home")
+        ga       = goals.get("away")
+
+        # Determine winner for knockout matches
+        winner = None
+        if status in finished_statuses and gh is not None and ga is not None:
+            if gh > ga:
+                winner = home
+            elif ga > gh:
+                winner = away
+            else:
+                # Check penalty score
+                pen = score.get("penalty") or {}
+                ph  = pen.get("home")
+                pa  = pen.get("away")
+                if ph is not None and pa is not None:
+                    winner = home if ph > pa else away
+
+        matches.append({
+            "home":       home,
+            "away":       away,
+            "goals_home": int(gh) if gh is not None else None,
+            "goals_away": int(ga) if ga is not None else None,
+            "status":     status,
+            "date":       date_str,
+            "fixture_id": fix_id,
+            "winner":     winner,
+            "home_api":   home_api,
+            "away_api":   away_api,
+        })
+
+    finished = [m for m in matches if m["status"] in finished_statuses]
+    live     = [m for m in matches if m["status"] in {"1H","2H","HT","ET","BT","P","INT"}]
+    debug.append(f"Finished: {len(finished)}  |  Live: {len(live)}  |  Upcoming: {len(matches)-len(finished)-len(live)}")
+    for m in finished[:5]:
+        debug.append(f"  {m['date']} {m['home']} {m['goals_home']}–{m['goals_away']} {m['away']} [{m['status']}] → {m['winner']}")
+
+    return matches, "\n".join(debug)
+
+
+def build_live_bracket(matches: list[dict]) -> list[dict]:
+    """
+    Merge API results into R32_BRACKET entries.
+    Returns list of dicts with real scores and winner where known.
+    """
+    # Build lookup: (home_lower, away_lower) → match
+    lookup: dict = {}
+    for m in matches:
+        key1 = (m["home"].lower(), m["away"].lower())
+        key2 = (m["away"].lower(), m["home"].lower())
+        lookup[key1] = m
+        lookup[key2] = m
+
+    bracket = []
+    for home, away, date in R32_BRACKET:
+        if away == "TBD":
+            bracket.append({
+                "home": home, "away": "TBD", "date": date,
+                "goals_home": None, "goals_away": None,
+                "status": "TBD", "winner": None,
+                "flag_h": BASE_TEAMS.get(home, {}).get("flag", "🏳️"),
+                "flag_a": "🏳️",
+            })
+            continue
+
+        key  = (home.lower(), away.lower())
+        live = lookup.get(key)
+        if live:
+            bracket.append({
+                "home":       home,
+                "away":       away,
+                "date":       live["date"] or date,
+                "goals_home": live["goals_home"],
+                "goals_away": live["goals_away"],
+                "status":     live["status"],
+                "winner":     live["winner"],
+                "flag_h":     BASE_TEAMS.get(home, {}).get("flag", "🏳️"),
+                "flag_a":     BASE_TEAMS.get(away, {}).get("flag", "🏳️"),
+            })
+        else:
+            bracket.append({
+                "home": home, "away": away, "date": date,
+                "goals_home": None, "goals_away": None,
+                "status": "NS", "winner": None,
+                "flag_h": BASE_TEAMS.get(home, {}).get("flag", "🏳️"),
+                "flag_a": BASE_TEAMS.get(away, {}).get("flag", "🏳️"),
+            })
+    return bracket
+
 # Updated FC 25 / EA FC 25 ratings (June 2026 patch)
 # (name, team, pos, overall, pace, shooting, passing, dribbling, defending, physical)
 PLAYER_CARDS_FALLBACK = [
@@ -1211,8 +1332,9 @@ with tab_sim:
             st.markdown("#### Top 12 win probability")
             st.bar_chart(df.head(12).set_index("Team")[["Win %"]], use_container_width=True)
 
-        st.session_state["gb_prob"] = gb_prob
-        st.session_state["n_sims"]  = n_sims
+        st.session_state["gb_prob"]          = gb_prob
+        st.session_state["n_sims"]            = n_sims
+        st.session_state["last_win_counts"]   = win_counts
         st.info("👟 Switch to the Golden Boot tab for top scorer predictions.")
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1370,86 +1492,207 @@ with tab_h2h:
 # ════════════════════════════════════════════════════════════════════════════════
 # TAB 5 — R32 Bracket (visual)
 # ════════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════════
+# TAB 5 — R32 Bracket (live results)
+# ════════════════════════════════════════════════════════════════════════════════
 with tab_bracket:
-    st.subheader("🗓️ Round of 32 — Visual Bracket")
-    st.caption("Green = favourite · Red = underdog · Yellow = within 5% · Updates with sidebar settings.")
+    st.subheader("🗓️ Round of 32 — Live Results")
 
+    # Fetch live results if API connected, else fall back to probability view
+    live_matches: list[dict] = []
+    results_debug = ""
+    if use_api and api_key:
+        with st.spinner("Fetching live WC 2026 results…"):
+            live_matches, results_debug = fetch_wc2026_results(api_key, wc_league_id_found)
+        n_done = sum(1 for m in live_matches if m["status"] in {"FT","AET","PEN","AWD","WO"})
+        n_live = sum(1 for m in live_matches if m["status"] in {"1H","2H","HT","ET","BT","P","INT"})
+        cols_hdr = st.columns([2,2,2,3])
+        cols_hdr[0].metric("Matches played", n_done)
+        cols_hdr[1].metric("Live now", n_live)
+        cols_hdr[2].metric("Remaining", max(0, 16 - n_done))
+        cols_hdr[3].caption(f"⏱ Refreshes every 5 min · Last fetch included {len(live_matches)} fixtures")
+        if st.button("🔄 Refresh results now", key="refresh_bracket"):
+            fetch_wc2026_results.clear()
+            st.rerun()
+    else:
+        st.info("🔵 Connect API in sidebar for live scores. Showing win probabilities only.")
+
+    st.divider()
+
+    # Build bracket — with real scores if available, else probability mode
+    use_live = bool(live_matches)
+    bracket_live = build_live_bracket(live_matches) if use_live else None
+
+    # Pre-compute probabilities for matches not yet played
     with st.spinner("Computing probabilities…"):
-        bracket_data = []
-        for home, away, date in R32_BRACKET:
+        bracket_display = []
+        for i, (home, away, date) in enumerate(R32_BRACKET):
+            live_entry = bracket_live[i] if bracket_live else None
             th = get_team(home)
-            if away == "TBD":
-                bracket_data.append({"date":date,"home":home,"away":"TBD",
-                                     "flag_h":th["flag"],"flag_a":"🏳️",
-                                     "xg_h":None,"xg_a":None,
-                                     "win_h":None,"draw":None,"win_a":None,
-                                     "pen_h":None,"pen_a":None})
-            else:
-                ta       = get_team(away)
-                xg_h, xg_a = expected_goals(home, away)
-                probs    = h2h_win_prob(home, away, n=10_000)
-                ph       = PENALTY_WIN_RATE.get(home, 0.50)
-                pa       = PENALTY_WIN_RATE.get(away, 0.50)
-                pt       = ph + pa
-                bracket_data.append({"date":date,"home":home,"away":away,
-                                     "flag_h":th["flag"],"flag_a":ta["flag"],
-                                     "xg_h":xg_h,"xg_a":xg_a,
-                                     "win_h":probs["team_a"],"draw":probs["draw_90"],"win_a":probs["team_b"],
-                                     "pen_h":ph/pt*100,"pen_a":pa/pt*100})
+            ta = get_team(away) if away != "TBD" else {"flag":"🏳️","atk":1.2,"def":0.9,"elo":1600}
 
-    def match_card(m: dict) -> str:
-        if m["win_h"] is None:
-            return (
-                '<div style="border:1px solid #444;border-radius:8px;padding:8px 10px;'
-                'background:#1e1e2e;margin-bottom:6px;font-family:Segoe UI,sans-serif;">'
-                '<div style="font-size:10px;color:#888;margin-bottom:4px;">' + m["date"] + '</div>'
-                '<div style="display:flex;justify-content:space-between;align-items:center;">'
-                '<span style="font-size:13px;font-weight:700;color:#fff;">' + m["flag_h"] + ' ' + m["home"] + '</span>'
-                '<span style="font-size:10px;color:#aaa;padding:0 6px;">vs</span>'
-                '<span style="font-size:13px;font-weight:700;color:#888;">🏳️ TBD</span>'
-                '</div></div>'
+            status  = live_entry["status"] if live_entry else "NS"
+            winner  = live_entry["winner"] if live_entry else None
+            gh      = live_entry["goals_home"] if live_entry else None
+            ga      = live_entry["goals_away"] if live_entry else None
+
+            # Only compute probs for unplayed matches
+            if away != "TBD" and status in ("NS", None) or not use_live:
+                probs = h2h_win_prob(home, away, n=10_000) if away != "TBD" else None
+                xg_h, xg_a = expected_goals(home, away) if away != "TBD" else (None, None)
+                ph = PENALTY_WIN_RATE.get(home, 0.5)
+                pa = PENALTY_WIN_RATE.get(away, 0.5)
+                pt = ph + pa
+            else:
+                probs = None
+                xg_h = xg_a = None
+                ph = PENALTY_WIN_RATE.get(home, 0.5)
+                pa = PENALTY_WIN_RATE.get(away, 0.5)
+                pt = ph + pa
+
+            bracket_display.append({
+                "home": home, "away": away, "date": date,
+                "flag_h": th["flag"],
+                "flag_a": ta["flag"] if away != "TBD" else "🏳️",
+                "status": status, "winner": winner,
+                "goals_home": gh, "goals_away": ga,
+                "probs": probs, "xg_h": xg_h, "xg_a": xg_a,
+                "pen_h": ph/pt*100, "pen_a": pa/pt*100,
+            })
+
+    def bracket_card(m: dict) -> str:
+        status   = m["status"]
+        winner   = m["winner"]
+        gh       = m["goals_home"]
+        ga       = m["goals_away"]
+        probs    = m["probs"]
+        finished = status in {"FT","AET","PEN","AWD","WO"}
+        is_live  = status in {"1H","2H","HT","ET","BT","P","INT"}
+
+        # Status badge
+        if finished:
+            status_badge = (
+                '<span style="background:#22c55e;color:#000;font-size:9px;'
+                'font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;">FT</span>'
             )
-        close  = abs(m["win_h"] - m["win_a"]) < 5
-        col_h  = "#facc15" if close else ("#4ade80" if m["win_h"] > m["win_a"] else "#f87171")
-        col_a  = "#facc15" if close else ("#4ade80" if m["win_a"] > m["win_h"] else "#f87171")
-        bh, bd, ba = int(m["win_h"]), int(m["draw"]), int(m["win_a"])
+        elif is_live:
+            status_badge = (
+                '<span style="background:#ef4444;color:#fff;font-size:9px;'
+                'font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;'
+                'animation:pulse 1s infinite;">● LIVE</span>'
+            )
+        elif status == "TBD":
+            status_badge = '<span style="color:#555;font-size:9px;margin-left:6px;">TBD</span>'
+        else:
+            status_badge = f'<span style="color:#8888bb;font-size:9px;margin-left:6px;">{m["date"]}</span>'
+
+        # Colours based on match state
+        if finished and winner:
+            col_h = "#22c55e" if winner == m["home"] else "#f87171"
+            col_a = "#22c55e" if winner == m["away"] else "#f87171"
+            bg_h  = "rgba(34,197,94,0.08)"  if winner == m["home"] else "transparent"
+            bg_a  = "rgba(34,197,94,0.08)"  if winner == m["away"] else "transparent"
+        elif is_live:
+            col_h = col_a = "#facc15"
+            bg_h  = bg_a  = "transparent"
+        elif probs and m["away"] != "TBD":
+            close = abs(probs["team_a"] - probs["team_b"]) < 5
+            col_h = "#facc15" if close else ("#4ade80" if probs["team_a"] > probs["team_b"] else "#f87171")
+            col_a = "#facc15" if close else ("#4ade80" if probs["team_b"] > probs["team_a"] else "#f87171")
+            bg_h  = bg_a = "transparent"
+        else:
+            col_h = col_a = "#8888bb"
+            bg_h  = bg_a  = "transparent"
+
+        # Score or probability display
+        if finished or is_live:
+            score_h = str(gh) if gh is not None else "?"
+            score_a = str(ga) if ga is not None else "?"
+            right_h = f'<span style="font-size:20px;font-weight:900;color:{col_h};min-width:24px;text-align:right;">{score_h}</span>'
+            right_a = f'<span style="font-size:20px;font-weight:900;color:{col_a};min-width:24px;text-align:right;">{score_a}</span>'
+            bar_section = ""
+            if status == "AET":
+                bar_section = '<div style="text-align:center;font-size:9px;color:#8888bb;margin:1px 0;">after extra time</div>'
+            elif status == "PEN":
+                bar_section = '<div style="text-align:center;font-size:9px;color:#8888bb;margin:1px 0;">after penalties</div>'
+        elif m["away"] == "TBD":
+            right_h = right_a = ""
+            bar_section = ""
+        elif probs:
+            right_h = f'<span style="font-size:12px;font-weight:800;color:{col_h};min-width:38px;text-align:right;">{probs["team_a"]:.1f}%</span>'
+            right_a = f'<span style="font-size:12px;font-weight:800;color:{col_a};min-width:38px;text-align:right;">{probs["team_b"]:.1f}%</span>'
+            bh = int(probs["team_a"]); bd = int(probs["draw_90"]); ba = int(probs["team_b"])
+            bar_section = (
+                '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden;margin:3px 0;gap:1px;">'
+                f'<div style="width:{bh}%;background:{col_h};"></div>'
+                f'<div style="width:{bd}%;background:#444;"></div>'
+                f'<div style="width:{ba}%;background:{col_a};"></div>'
+                '</div>'
+            )
+        else:
+            right_h = right_a = ""
+            bar_section = ""
+
+        # Winner crown
+        crown_h = " 👑" if finished and winner == m["home"] else ""
+        crown_a = " 👑" if finished and winner == m["away"] else ""
+
+        # xG line (only for unplayed)
+        xg_line = ""
+        if not finished and not is_live and m["xg_h"] is not None:
+            xg_line = (
+                f'<div style="font-size:10px;color:#6666aa;margin-top:2px;">'
+                f'xG: {m["flag_h"]} {m["xg_h"]:.2f} vs {m["flag_a"]} {m["xg_a"]:.2f}'
+                f' &nbsp;|&nbsp; Pen: {m["pen_h"]:.0f}% vs {m["pen_a"]:.0f}%'
+                f'</div>'
+            )
+
         return (
-            '<div style="border:1px solid #333;border-radius:8px;padding:8px 10px;'
-            'background:#1a1a2e;margin-bottom:6px;font-family:Segoe UI,sans-serif;">'
-            '<div style="font-size:10px;color:#888;margin-bottom:5px;">' + m["date"] + '</div>'
-            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
-            '<span style="font-size:13px;min-width:22px;">' + m["flag_h"] + '</span>'
-            '<span style="flex:1;font-size:12px;font-weight:700;color:#fff;">' + m["home"] + '</span>'
-            '<span style="font-size:11px;color:#aaa;min-width:36px;text-align:right;">xG ' + f'{m["xg_h"]:.2f}' + '</span>'
-            '<span style="font-size:12px;font-weight:800;color:' + col_h + ';min-width:38px;text-align:right;">' + f'{m["win_h"]:.1f}%' + '</span>'
+            '<div style="border:1px solid #2a2a4a;border-radius:10px;padding:10px 12px;'
+            'background:#161628;margin-bottom:8px;font-family:Segoe UI,sans-serif;">'
+            # Header row
+            f'<div style="display:flex;align-items:center;margin-bottom:6px;">'
+            f'{status_badge}'
+            f'</div>'
+            # Home team
+            f'<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;'
+            f'background:{bg_h};border-radius:6px;margin-bottom:2px;">'
+            f'<span style="font-size:15px;">{m["flag_h"]}</span>'
+            f'<span style="flex:1;font-size:13px;font-weight:700;color:#e8e8ff;">{m["home"]}{crown_h}</span>'
+            f'{right_h}'
+            f'</div>'
+            # Bar
+            + bar_section +
+            # Away team
+            f'<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;'
+            f'background:{bg_a};border-radius:6px;margin-top:2px;">'
+            f'<span style="font-size:15px;">{m["flag_a"]}</span>'
+            f'<span style="flex:1;font-size:13px;font-weight:700;color:#e8e8ff;">{m["away"]}{crown_a}</span>'
+            f'{right_a}'
+            f'</div>'
+            + xg_line +
             '</div>'
-            '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden;margin-bottom:3px;gap:1px;">'
-            '<div style="width:' + str(bh) + '%;background:' + col_h + ';"></div>'
-            '<div style="width:' + str(bd) + '%;background:#555;"></div>'
-            '<div style="width:' + str(ba) + '%;background:' + col_a + ';"></div>'
-            '</div>'
-            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
-            '<span style="font-size:13px;min-width:22px;">' + m["flag_a"] + '</span>'
-            '<span style="flex:1;font-size:12px;font-weight:700;color:#fff;">' + m["away"] + '</span>'
-            '<span style="font-size:11px;color:#aaa;min-width:36px;text-align:right;">xG ' + f'{m["xg_a"]:.2f}' + '</span>'
-            '<span style="font-size:12px;font-weight:800;color:' + col_a + ';min-width:38px;text-align:right;">' + f'{m["win_a"]:.1f}%' + '</span>'
-            '</div>'
-            '<div style="border-top:1px solid #333;padding-top:3px;display:flex;justify-content:space-between;">'
-            '<span style="font-size:9px;color:#777;">Pen: ' + m["flag_h"] + ' ' + f'{m["pen_h"]:.0f}%' + ' vs ' + m["flag_a"] + ' ' + f'{m["pen_a"]:.0f}%' + '</span>'
-            '<span style="font-size:9px;color:#555;">Draw ' + f'{m["draw"]:.1f}%' + '</span>'
-            '</div></div>'
         )
 
-    col_l, col_div, col_r = st.columns([5, 1, 5])
+    col_l, col_gap, col_r = st.columns([5, 1, 5])
     with col_l:
         st.markdown("**Matches 1–8**")
-        st.markdown("".join(match_card(m) for m in bracket_data[:8]), unsafe_allow_html=True)
-    with col_div:
-        st.markdown('<div style="border-left:2px dashed #444;height:100%;margin:0 auto;width:0;"></div>',
+        st.markdown("".join(bracket_card(m) for m in bracket_display[:8]),
                     unsafe_allow_html=True)
+    with col_gap:
+        st.markdown(
+            '<div style="border-left:1px dashed #2a2a4a;height:100%;margin:0 auto;width:0;"></div>',
+            unsafe_allow_html=True)
     with col_r:
         st.markdown("**Matches 9–16**")
-        st.markdown("".join(match_card(m) for m in bracket_data[8:]), unsafe_allow_html=True)
+        st.markdown("".join(bracket_card(m) for m in bracket_display[8:]),
+                    unsafe_allow_html=True)
+
+    if results_debug:
+        with st.expander("🔍 Results fetch debug"):
+            st.code(results_debug)
+
+    st.caption("🟢 = winner · 🔴 = eliminated · Win % shown for unplayed matches · 👑 = advanced")
 
 # ════════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════════
