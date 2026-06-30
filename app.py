@@ -9,74 +9,44 @@ from collections import defaultdict
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="2026 World Cup Simulator", page_icon="🏆", layout="wide")
 
-# ── Global CSS theme ───────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Dark dashboard base */
-[data-testid="stAppViewContainer"] { background: #0d0d1a; }
-[data-testid="stSidebar"]          { background: #111120; border-right: 1px solid #1e1e3a; }
+/* Clean dark background, no gradients */
+[data-testid="stAppViewContainer"] { background: #111; }
+[data-testid="stSidebar"]          { background: #0e0e0e; border-right: 1px solid #222; }
 [data-testid="stHeader"]           { background: transparent; }
 
-/* Metric cards */
-[data-testid="metric-container"] {
-    background: #161628;
-    border: 1px solid #2a2a4a;
-    border-radius: 10px;
-    padding: 12px 16px !important;
-}
-[data-testid="stMetricLabel"]  { color: #8888bb !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: .06em; }
-[data-testid="stMetricValue"]  { color: #e8e8ff !important; font-size: 1.6rem !important; font-weight: 800 !important; }
-[data-testid="stMetricDelta"]  { font-size: 11px !important; }
+/* Metrics — plain, no card borders */
+[data-testid="metric-container"]   { background: transparent; padding: 4px 0 !important; }
+[data-testid="stMetricLabel"]      { color: #666 !important; font-size: 11px !important; text-transform: none; letter-spacing: 0; }
+[data-testid="stMetricValue"]      { color: #eee !important; font-size: 1.4rem !important; font-weight: 700 !important; }
 
-/* Tabs */
-[data-testid="stTabs"] button {
-    color: #8888bb;
-    font-weight: 600;
-    font-size: 12px;
-    letter-spacing: .04em;
-    border-bottom: 2px solid transparent;
-}
-[data-testid="stTabs"] button[aria-selected="true"] {
-    color: #ffd700 !important;
-    border-bottom-color: #ffd700 !important;
-}
+/* Tabs — simple underline */
+[data-testid="stTabs"] button                     { color: #666; font-size: 13px; font-weight: 500; }
+[data-testid="stTabs"] button[aria-selected="true"] { color: #eee !important; border-bottom: 2px solid #eee !important; }
 
-/* Headings */
-h1 { background: linear-gradient(90deg,#ffd700,#ff8c00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-weight:900 !important; }
-h2,h3 { color: #c8c8ff !important; }
-
-/* Dataframe */
-[data-testid="stDataFrame"] { border: 1px solid #2a2a4a; border-radius: 8px; }
+/* Headings — plain white */
+h1 { color: #eee !important; font-weight: 800 !important; font-size: 1.5rem !important; -webkit-text-fill-color: #eee !important; background: none !important; }
+h2, h3 { color: #ccc !important; font-weight: 600 !important; }
 
 /* Divider */
-hr { border-color: #2a2a4a !important; }
+hr { border-color: #222 !important; }
 
 /* Buttons */
 [data-testid="baseButton-primary"] {
-    background: linear-gradient(90deg,#ffd700,#ff8c00) !important;
-    color: #000 !important;
-    font-weight: 800 !important;
+    background: #eee !important;
+    color: #111 !important;
+    font-weight: 700 !important;
     border: none !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
 }
 
 /* Sidebar text */
-.css-1d391kg, [data-testid="stSidebarContent"] { color: #c8c8ff; }
+[data-testid="stSidebarContent"] { color: #aaa; }
+[data-testid="stCaptionContainer"] { color: #555 !important; }
 
-/* Caption */
-[data-testid="stCaptionContainer"] { color: #6666aa !important; }
-
-/* Stat pill style for inline HTML */
-.stat-pill {
-    display: inline-block;
-    background: #1e1e3a;
-    border: 1px solid #3a3a6a;
-    border-radius: 20px;
-    padding: 3px 10px;
-    font-size: 12px;
-    color: #c8c8ff;
-    margin: 2px;
-}
+/* Dataframe */
+[data-testid="stDataFrame"] { border: 1px solid #222; border-radius: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1171,27 +1141,8 @@ def h2h_win_prob(team_a: str, team_b: str, n: int = 20_000) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 # UI
 # ══════════════════════════════════════════════════════════════════════════════
-st.markdown("""
-<div style="display:flex;align-items:center;justify-content:space-between;
-            padding:18px 24px;background:linear-gradient(135deg,#0d0d1a,#1a1a2e,#16213e);
-            border:1px solid #2a2a4a;border-radius:14px;margin-bottom:8px;">
-  <div>
-    <div style="font-size:28px;font-weight:900;background:linear-gradient(90deg,#ffd700,#ff8c00);
-                -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-      🏆 FIFA World Cup 2026 Simulator
-    </div>
-    <div style="font-size:12px;color:#8888bb;margin-top:4px;letter-spacing:.05em;">
-      POISSON GOAL MODEL &nbsp;·&nbsp; MONTE CARLO &nbsp;·&nbsp; ELO RATINGS &nbsp;·&nbsp;
-      LIVE API &nbsp;·&nbsp; GOLDEN BOOT &nbsp;·&nbsp; FIFA CARDS &nbsp;·&nbsp; INTERACTIVE MAP
-    </div>
-  </div>
-  <div style="text-align:right;color:#6666aa;font-size:11px;">
-    <div style="font-size:22px;">🇺🇸🇲🇽🇨🇦</div>
-    <div>USA · Mexico · Canada</div>
-    <div>June–July 2026</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+st.title("🏆 2026 World Cup Simulator")
+st.caption("Poisson model · Monte Carlo · Elo ratings · Live API · USA / Mexico / Canada")
 
 # Module-scope defaults so all tabs can read them even without API
 ratings_source  = "Built-in (June 2026)"
@@ -1648,26 +1599,22 @@ with tab_bracket:
             )
 
         return (
-            '<div style="border:1px solid #2a2a4a;border-radius:10px;padding:10px 12px;'
-            'background:#161628;margin-bottom:8px;font-family:Segoe UI,sans-serif;">'
-            # Header row
-            f'<div style="display:flex;align-items:center;margin-bottom:6px;">'
+            '<div style="border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;'
+            'background:#181818;margin-bottom:6px;font-family:inherit;">'
+            f'<div style="display:flex;align-items:center;margin-bottom:5px;">'
             f'{status_badge}'
             f'</div>'
-            # Home team
-            f'<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;'
-            f'background:{bg_h};border-radius:6px;margin-bottom:2px;">'
-            f'<span style="font-size:15px;">{m["flag_h"]}</span>'
-            f'<span style="flex:1;font-size:13px;font-weight:700;color:#e8e8ff;">{m["home"]}{crown_h}</span>'
+            f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;'
+            f'background:{bg_h};border-radius:4px;margin-bottom:2px;">'
+            f'<span style="font-size:14px;">{m["flag_h"]}</span>'
+            f'<span style="flex:1;font-size:13px;font-weight:600;color:#ddd;">{m["home"]}{crown_h}</span>'
             f'{right_h}'
             f'</div>'
-            # Bar
             + bar_section +
-            # Away team
-            f'<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;'
-            f'background:{bg_a};border-radius:6px;margin-top:2px;">'
-            f'<span style="font-size:15px;">{m["flag_a"]}</span>'
-            f'<span style="flex:1;font-size:13px;font-weight:700;color:#e8e8ff;">{m["away"]}{crown_a}</span>'
+            f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;'
+            f'background:{bg_a};border-radius:4px;margin-top:2px;">'
+            f'<span style="font-size:14px;">{m["flag_a"]}</span>'
+            f'<span style="flex:1;font-size:13px;font-weight:600;color:#ddd;">{m["away"]}{crown_a}</span>'
             f'{right_a}'
             f'</div>'
             + xg_line +
@@ -1759,24 +1706,24 @@ with tab_map:
 <head>
 <meta charset="utf-8">
 <style>
-  body { margin:0; background:#0d0d1a; font-family: 'Segoe UI', sans-serif; }
-  #map { width:100%; height:580px; }
-  .leaflet-container { background:#0d0d1a !important; }
+  body { margin:0; background:#111; font-family: system-ui, sans-serif; }
+  #map { width:100%; height:560px; }
+  .leaflet-container { background:#111 !important; }
   .info-panel {
     position:absolute; top:10px; right:10px; z-index:1000;
-    background:#161628; border:1px solid #2a2a4a; border-radius:12px;
-    padding:16px; min-width:220px; max-width:260px; color:#e8e8ff;
-    display:none;
+    background:#1a1a1a; border:1px solid #333; border-radius:6px;
+    padding:14px; min-width:200px; max-width:240px; color:#ddd;
+    display:none; font-size:13px;
   }
   .info-panel.visible { display:block; }
-  .info-flag { font-size:36px; text-align:center; }
-  .info-name { font-size:16px; font-weight:800; text-align:center; color:#ffd700; margin:4px 0; }
+  .info-flag { font-size:30px; text-align:center; }
+  .info-name { font-size:15px; font-weight:700; text-align:center; color:#fff; margin:4px 0 8px; }
   .stat-row { display:flex; justify-content:space-between; padding:3px 0;
-               border-bottom:1px solid #2a2a4a; font-size:12px; }
-  .stat-label { color:#8888bb; }
-  .stat-val   { color:#e8e8ff; font-weight:700; }
-  .win-bar    { height:6px; border-radius:3px; background:#2a2a4a; margin:6px 0; }
-  .win-fill   { height:6px; border-radius:3px; background:linear-gradient(90deg,#ffd700,#ff8c00); }
+               border-bottom:1px solid #222; font-size:12px; }
+  .stat-label { color:#666; }
+  .stat-val   { color:#ddd; font-weight:600; }
+  .win-bar    { height:4px; border-radius:2px; background:#222; margin:6px 0; }
+  .win-fill   { height:4px; border-radius:2px; background:#eee; }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1806,7 +1753,7 @@ teams.forEach(t => {
   const norm = (t.elo - minElo) / (maxElo - minElo);
   const r    = 8 + norm * 14;
   // Color by Elo: gold for top, silver mid, bronze low
-  const col  = norm > 0.7 ? '#ffd700' : norm > 0.4 ? '#c0c0c0' : '#a0714a';
+  const col  = norm > 0.7 ? '#ffffff' : norm > 0.4 ? '#aaaaaa' : '#666666';
 
   const circle = L.circleMarker([t.lat, t.lon], {
     radius: r, fillColor: col, color: '#0d0d1a',
@@ -1822,19 +1769,15 @@ teams.forEach(t => {
 
   circle.on('click', () => {
     const panel = document.getElementById('info');
-    const winPct = t.win_pct !== null ? t.win_pct.toFixed(1) + '%' : 'Run sim →';
-    const winFill = t.win_pct !== null ? Math.min(t.win_pct * 5, 100) : 0;
     panel.innerHTML = `
       <div class="info-flag">${t.flag}</div>
       <div class="info-name">${t.team}</div>
-      <div class="stat-row"><span class="stat-label">Elo rating</span><span class="stat-val">${t.elo.toLocaleString()}</span></div>
-      <div class="stat-row"><span class="stat-label">Attack λ</span><span class="stat-val">${t.atk.toFixed(2)}</span></div>
-      <div class="stat-row"><span class="stat-label">Defense mult.</span><span class="stat-val">${t.def.toFixed(2)}</span></div>
-      <div class="stat-row"><span class="stat-label">Pen win rate</span><span class="stat-val">${(t.pen_r*100).toFixed(0)}%</span></div>
-      <div class="stat-row"><span class="stat-label">Key players</span><span class="stat-val" style="font-size:10px;text-align:right;max-width:130px">${t.top_players||'—'}</span></div>
-      <div style="margin-top:8px;font-size:11px;color:#8888bb;">Tournament win probability</div>
-      <div style="font-size:18px;font-weight:800;color:#ffd700;">${winPct}</div>
-      <div class="win-bar"><div class="win-fill" style="width:${winFill}%"></div></div>
+      <div class="stat-row"><span class="stat-label">Elo</span><span class="stat-val">${t.elo.toLocaleString()}</span></div>
+      <div class="stat-row"><span class="stat-label">Attack</span><span class="stat-val">${t.atk.toFixed(2)}</span></div>
+      <div class="stat-row"><span class="stat-label">Defense</span><span class="stat-val">${t.def.toFixed(2)}</span></div>
+      <div class="stat-row"><span class="stat-label">Pen rate</span><span class="stat-val">${(t.pen_r*100).toFixed(0)}%</span></div>
+      <div class="stat-row"><span class="stat-label">Key players</span><span class="stat-val" style="text-align:right;max-width:130px;font-size:11px;">${t.top_players||'—'}</span></div>
+      ${t.win_pct !== null ? `<div class="stat-row"><span class="stat-label">Win chance</span><span class="stat-val">${t.win_pct.toFixed(1)}%</span></div>` : ''}
     `;
     panel.classList.add('visible');
   });
@@ -1947,27 +1890,25 @@ with tab_history:
             is_host_win = winner == host
             badge = '🏠' if is_host_win else ''
             timeline_html += (
-                '<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;'
-                'padding:12px;background:#161628;border:1px solid #2a2a4a;border-radius:10px;">'
-                # Year column
-                f'<div style="min-width:48px;text-align:center;">'
-                f'<div style="font-size:18px;font-weight:900;color:#ffd700;">{yr}</div>'
-                f'<div style="font-size:10px;color:#6666aa;">{hflag}</div>'
+                '<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;'
+                'padding:10px;background:#181818;border:1px solid #222;border-radius:6px;">'
+                f'<div style="min-width:44px;text-align:center;">'
+                f'<div style="font-size:16px;font-weight:800;color:#ddd;">{yr}</div>'
+                f'<div style="font-size:11px;color:#555;">{hflag}</div>'
                 f'</div>'
-                # Content
                 '<div style="flex:1;">'
-                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
-                f'<span style="font-size:20px;">{wflag}</span>'
-                f'<span style="font-size:15px;font-weight:800;color:#e8e8ff;">{winner}</span>'
-                f'<span style="background:#ffd700;color:#000;font-size:10px;font-weight:800;'
-                f'padding:1px 6px;border-radius:10px;">WINNER {badge}</span>'
+                f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
+                f'<span style="font-size:18px;">{wflag}</span>'
+                f'<span style="font-size:14px;font-weight:700;color:#eee;">{winner}</span>'
+                f'<span style="background:#333;color:#aaa;font-size:10px;'
+                f'padding:1px 6px;border-radius:4px;">winner {badge}</span>'
                 f'</div>'
-                f'<div style="font-size:12px;color:#8888bb;margin-bottom:3px;">'
-                f'vs {rflag} {runup} &nbsp;|&nbsp; '
-                f'<span style="color:#c0c0c0;font-weight:700;">{score}</span>'
+                f'<div style="font-size:12px;color:#666;margin-bottom:2px;">'
+                f'vs {rflag} {runup} &nbsp;·&nbsp; '
+                f'<span style="color:#aaa;">{score}</span>'
                 f'</div>'
-                f'<div style="font-size:11px;color:#6666aa;">🥅 {scorer}</div>'
-                f'<div style="font-size:11px;color:#6666aa;">👥 {att:,} attendance · Host: {host}</div>'
+                f'<div style="font-size:11px;color:#555;">⚽ {scorer}</div>'
+                f'<div style="font-size:11px;color:#444;">🏟 {att:,} · {host}</div>'
                 '</div>'
                 '</div>'
             )
