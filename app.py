@@ -844,52 +844,157 @@ def sim_match(a: str, b: str) -> tuple:
     w=a if ga>gb else b
     return w,ga,gb,dist_goals(a,ga),dist_goals(b,gb)
 
-def sim_tournament() -> tuple:
-    sur: list=[]; pg: dict=defaultdict(int)
-    for home,away,_ in R32_BRACKET:
-        if away=="TBD": sur.append(home); continue
-        w,_,_,sh,sa=sim_match(home,away)
-        for p,g in {**sh,**sa}.items(): pg[p]+=g
+def h2h(a: str, b: str, n: int = 0) -> dict:
+    """
+    Closed-form Poisson win/draw probabilities — no simulation loop needed.
+    P(A scores i, B scores j) = Poisson(xg_a,i) * Poisson(xg_b,j)
+    Sums over grid up to 10 goals each. Runs in microseconds.
+    n param kept for API compatibility but ignored.
+    """
+    xa, xb = xg(a, b)
+    from scipy.stats import poisson as sp
+    k = np.arange(11)
+    pa = sp.pmf(k, xa)   # P(A scores 0..10)
+    pb = sp.pmf(k, xb)   # P(B scores 0..10)
+    # Outer product → joint probability matrix
+    joint = np.outer(pa, pb)   # joint[i,j] = P(A=i, B=j)
+    win_a = float(np.tril(joint, -1).sum())   # A scores more
+    win_b = float(np.triu(joint, 1).sum())    # B scores more
+    draw  = float(np.diag(joint).sum())       # equal
+    tot   = win_a + win_b + draw
+    return {
+        "team_a":  round(win_a / tot * 100, 2),
+        "team_b":  round(win_b / tot * 100, 2),
+        "draw_90": round(draw  / tot * 100, 2),
+    }
+
+def predict_score(a: str, b: str) -> tuple:
+    """
+    Return most likely scoreline and top-3 scorelines with probabilities.
+    Uses joint Poisson PMF grid.
+    """
+    from scipy.stats import poisson as sp
+    xa, xb = xg(a, b)
+    k = np.arange(9)
+    pa = sp.pmf(k, xa)
+    pb = sp.pmf(k, xb)
+    joint = np.outer(pa, pb)
+    # Most likely scoreline
+    idx = np.unravel_index(np.argmax(joint), joint.shape)
+    most_likely = (int(idx[0]), int(idx[1]), float(joint[idx]) * 100)
+    # Top 5 scorelines
+    flat = [(int(i), int(j), float(joint[i, j]) * 100)
+            for i in range(9) for j in range(9)]
+    flat.sort(key=lambda x: -x[2])
+    return most_likely, flat[:5]
+
+@st.cache_data(show_spinner=False)
+def h2h_cached(a: str, b: str, thash: str) -> dict:
+    """Cached wrapper — thash ensures cache invalidates when team ratings change."""
+    return h2h(a, b)
+
+@st.cache_data(show_spinner=False)
+def bracket_probs_cached(thash: str) -> list:
+    """
+    Pre-compute all R32 and R16 match probabilities in one go.
+    Returns list of dicts keyed by (home, away).
+    Only computed for unplayed matches; finished ones return None.
+    """
+    results = {}
+    all_matches = list(R32_BRACKET) + [(h, a, d) for h, a, d, *_ in R16_FIXTURES]
+    for home, away, date in all_matches:
+        # Check if already finished
+        finished = any(
+            (r[0]==home and r[1]==away and r[6] is not None)
+            or (r[1]==home and r[0]==away and r[6] is not None)
+            for r in R32_RESULTS
+        )
+        r16_finished = any(
+            (f[0]==home and f[1]==away and f[6] is not None)
+            or (f[1]==home and f[0]==away and f[6] is not None)
+            for f in R16_FIXTURES
+        )
+        if not finished and not r16_finished and away not in ("TBD",):
+            results[(home, away)] = h2h(home, away)
+            results[(home, away)]["score"] = predict_score(home, away)
+    return results
+
+def sim_tournament_fast(rng: np.random.Generator) -> tuple:
+    """Vectorised tournament — uses numpy RNG for speed."""
+    sur: list = []
+    pg: dict  = defaultdict(int)
+
+    for home, away, _ in R32_BRACKET:
+        if away == "TBD":
+            sur.append(home)
+            continue
+        # Check if real result known
+        real = next((r for r in R32_RESULTS
+                     if (r[0]==home and r[1]==away) or (r[1]==home and r[0]==away)), None)
+        if real:
+            sur.append(real[6])   # use real winner
+            continue
+        xa, xb = xg(home, away)
+        ga = int(rng.poisson(xa)); gb = int(rng.poisson(xb))
+        if ga == gb:
+            ga += int(rng.poisson(xa * .33)); gb += int(rng.poisson(xb * .33))
+            if ga == gb:
+                p_a = PENALTY_WIN_RATE.get(home, .5); p_b = PENALTY_WIN_RATE.get(away, .5)
+                w = home if rng.random() < p_a / (p_a + p_b) else away
+            else:
+                w = home if ga > gb else away
+        else:
+            w = home if ga > gb else away
+        # Distribute goals to players
+        for team, n_g in ((home, ga), (away, gb)):
+            players = SQUADS.get(team, [("Other", 1.0)])
+            names   = [p[0] for p in players]
+            wts     = np.array([p[1] for p in players], dtype=float); wts /= wts.sum()
+            for _ in range(n_g):
+                pg[names[int(rng.choice(len(names), p=wts))]] += 1
         sur.append(w)
-    while len(sur)>1:
-        nxt=[]
-        for i in range(0,len(sur),2):
-            if i+1>=len(sur): nxt.append(sur[i]); continue
-            w,_,_,sa,sb=sim_match(sur[i],sur[i+1])
-            for p,g in {**sa,**sb}.items(): pg[p]+=g
+
+    while len(sur) > 1:
+        nxt = []
+        for i in range(0, len(sur), 2):
+            if i + 1 >= len(sur):
+                nxt.append(sur[i]); continue
+            a, b = sur[i], sur[i+1]
+            xa, xb = xg(a, b)
+            ga = int(rng.poisson(xa)); gb = int(rng.poisson(xb))
+            if ga == gb:
+                ga += int(rng.poisson(xa * .33)); gb += int(rng.poisson(xb * .33))
+                if ga == gb:
+                    p_a = PENALTY_WIN_RATE.get(a, .5); p_b = PENALTY_WIN_RATE.get(b, .5)
+                    w = a if rng.random() < p_a / (p_a + p_b) else b
+                else:
+                    w = a if ga > gb else b
+            else:
+                w = a if ga > gb else b
+            for team, n_g in ((a, ga), (b, gb)):
+                players = SQUADS.get(team, [("Other", 1.0)])
+                names   = [p[0] for p in players]
+                wts     = np.array([p[1] for p in players], dtype=float); wts /= wts.sum()
+                for _ in range(n_g):
+                    pg[names[int(rng.choice(len(names), p=wts))]] += 1
             nxt.append(w)
-        sur=nxt
-    return sur[0],dict(pg)
+        sur = nxt
+
+    return sur[0], dict(pg)
 
 @st.cache_data(show_spinner=False)
 def run_sims(n: int, seed: int, thash: str) -> tuple:
-    np.random.seed(seed); random.seed(seed)
-    wc: dict={}; gbt: dict=defaultdict(list)
+    rng = np.random.default_rng(seed)
+    wc:  dict = {}
+    gbt: dict = defaultdict(list)
     for _ in range(n):
-        ch,pg=sim_tournament()
-        wc[ch]=wc.get(ch,0)+1
-        for p,g in pg.items(): gbt[p].append(g)
-    ga  ={p:sum(gs)/n for p,gs in gbt.items() if p!="Other"}
-    tot =sum(ga.values())
-    return wc, ({p:v/tot for p,v in ga.items()} if tot>0 else {})
-
-def find_team(player: str) -> str:
-    for t,ps in SQUADS.items():
-        if any(nm==player for nm,_ in ps): return t
-    return "—"
-
-def find_flag(player: str) -> str:
-    return TEAMS.get(find_team(player),{}).get("flag","")
-
-def h2h(a: str, b: str, n: int=20_000) -> dict:
-    res={"team_a":0,"team_b":0,"draw_90":0}
-    xa,xb=xg(a,b)
-    for _ in range(n):
-        ga=int(np.random.poisson(xa)); gb=int(np.random.poisson(xb))
-        if ga>gb: res["team_a"]+=1
-        elif gb>ga: res["team_b"]+=1
-        else: res["draw_90"]+=1
-    return {k:v/n*100 for k,v in res.items()}
+        ch, pg = sim_tournament_fast(rng)
+        wc[ch] = wc.get(ch, 0) + 1
+        for p, g in pg.items():
+            gbt[p].append(g)
+    ga  = {p: sum(gs) / n for p, gs in gbt.items() if p != "Other"}
+    tot = sum(ga.values())
+    return wc, ({p: v / tot for p, v in ga.items()} if tot > 0 else {})
 
 # ══════════════════════════════════════════════════════════════════════
 # UI — Header
@@ -1157,9 +1262,10 @@ with tab_h2h:
         if ta==tb:
             st.warning("Pick different teams.")
         else:
-            with st.spinner("Simulating…"):
-                pr = h2h(ta,tb)
-            xa,xb = xg(ta,tb)
+            # h2h is now closed-form — instant, no spinner needed
+            pr = h2h(ta, tb)
+            ml, top5 = predict_score(ta, tb)
+            xa, xb   = xg(ta, tb)
             fa=get_team(ta)["flag"]; fb=get_team(tb)["flag"]
             pa=PENALTY_WIN_RATE.get(ta,.5); pb=PENALTY_WIN_RATE.get(tb,.5); pt=pa+pb
             ea=get_team(ta)["elo"]; eb=get_team(tb)["elo"]
@@ -1174,13 +1280,23 @@ with tab_h2h:
             c6.metric(f"{fa} Pen",f"{pa/pt*100:.0f}%")
             c7.metric(f"{fb} Pen",f"{pb/pt*100:.0f}%")
 
-            # Elo + model data
             st.divider()
-            d1,d2,d3,d4 = st.columns(4)
-            d1.metric(f"{fa} Elo",f"{ea:,}",f"{ea-eb:+,} vs opponent")
-            d2.metric(f"{fb} Elo",f"{eb:,}")
-            d3.metric("xG ratio",f"{xa/xb:.2f}:1" if xb>0 else "—")
-            d4.metric("Model margin",f"{pr['team_a']-pr['team_b']:+.1f}pp")
+            col_sc, col_elo = st.columns([3, 2], gap="medium")
+            with col_sc:
+                st.markdown(f"#### Predicted score: **{fa} {ml[0]}–{ml[1]} {fb}** ({ml[2]:.1f}% chance)")
+                st.caption("Top 5 most likely scorelines (90 min)")
+                sc_rows = []
+                for i_g, j_g, pct in top5:
+                    outcome = "Win" if i_g > j_g else ("Loss" if j_g > i_g else "Draw")
+                    sc_rows.append({"Scoreline": f"{ta} {i_g}–{j_g} {tb}",
+                                    "Prob": f"{pct:.2f}%", "Result": outcome})
+                st.dataframe(pd.DataFrame(sc_rows), use_container_width=True, hide_index=True)
+            with col_elo:
+                d1,d2 = st.columns(2)
+                d1.metric(f"{fa} Elo",f"{ea:,}",f"{ea-eb:+,}")
+                d2.metric(f"{fb} Elo",f"{eb:,}")
+                st.metric("xG ratio",f"{xa/xb:.2f}:1" if xb>0 else "—")
+                st.metric("Model margin",f"{pr['team_a']-pr['team_b']:+.1f}pp")
 
             notes=[]
             if HOST_ADVANTAGE.get(ta,0): notes.append(f"{fa} home +{HOST_ADVANTAGE[ta]*100:.0f}%")
@@ -1188,7 +1304,7 @@ with tab_h2h:
             if TEAM_BOOST.get(ta,1)!=1: notes.append(f"{fa} boost ×{TEAM_BOOST[ta]:.2f}")
             if TEAM_BOOST.get(tb,1)!=1: notes.append(f"{fb} boost ×{TEAM_BOOST[tb]:.2f}")
             if notes: st.caption(" · ".join(notes))
-            st.caption("Win/draw = 90 min. Knockout draws → extra time → penalties.")
+            st.caption("Closed-form Poisson · Win/draw = 90 min · Knockout draws → ET → penalties")
 
 # ─────────────────────────────────────────────────────────────────────
 # TAB 5 — Bracket
@@ -1216,32 +1332,30 @@ with tab_bracket:
         st.info("🔵 Connect API for live scores. Showing probabilities.")
 
     st.divider()
-    # Always build bracket — hardcoded results mean it works without API too
     use_live  = True
     bl        = build_live_bracket(live_ms)
     fin_set   = {"FT","AET","PEN","AWD","WO"}
     live_set  = {"1H","2H","HT","ET","BT","P","INT"}
 
-    with st.spinner("Computing probabilities…"):
-        bd = []
-        for i,(home,away,date) in enumerate(R32_BRACKET):
-            le = bl[i]
-            status = le["status"]
-            winner = le["winner"]
-            gh     = le["goals_home"]
-            ga     = le["goals_away"]
-            if status in("NS",None):
-                pr   = h2h(home,away,n=10_000)
-                xa,xb= xg(home,away)
-                ph=PENALTY_WIN_RATE.get(home,.5); pa=PENALTY_WIN_RATE.get(away,.5); pt=ph+pa
-            else:
-                pr=None; xa=xb=None
-                ph=PENALTY_WIN_RATE.get(home,.5); pa=PENALTY_WIN_RATE.get(away,.5); pt=ph+pa
-            bd.append({"home":home,"away":away,"date":date,
-                       "flag_h":BASE_TEAMS.get(home,{}).get("flag","🏳️"),
-                       "flag_a":BASE_TEAMS.get(away,{}).get("flag","🏳️"),
-                       "status":status,"winner":winner,"gh":gh,"ga":ga,
-                       "pr":pr,"xa":xa,"xb":xb,"ph":ph/pt*100,"pa":pa/pt*100})
+    # Compute all probabilities in one cached batch call (runs in milliseconds)
+    thash_br = str(hash(str(sorted((k,v["atk"],v["def"],TEAM_BOOST.get(k,1.0)) for k,v in TEAMS.items()))))
+    all_probs = bracket_probs_cached(thash_br)
+
+    bd = []
+    for i,(home,away,date) in enumerate(R32_BRACKET):
+        le     = bl[i]
+        status = le["status"]
+        winner = le["winner"]
+        gh     = le["goals_home"]
+        ga_v   = le["goals_away"]
+        pr     = all_probs.get((home, away)) if status in ("NS", None) else None
+        xa, xb = (xg(home, away) if status in ("NS", None) and away not in ("TBD",) else (None, None))
+        ph=PENALTY_WIN_RATE.get(home,.5); pa=PENALTY_WIN_RATE.get(away,.5); pt=ph+pa
+        bd.append({"home":home,"away":away,"date":date,
+                   "flag_h":BASE_TEAMS.get(home,{}).get("flag","🏳️"),
+                   "flag_a":BASE_TEAMS.get(away,{}).get("flag","🏳️"),
+                   "status":status,"winner":winner,"gh":gh,"ga":ga_v,
+                   "pr":pr,"xa":xa,"xb":xb,"ph":ph/pt*100,"pa":pa/pt*100})
 
     def bcard(m: dict) -> str:
         fin = m["status"] in fin_set; lv = m["status"] in live_set
@@ -1294,10 +1408,16 @@ with tab_bracket:
         ch_h=" 👑" if fin and m["winner"]==m["home"] else ""
         ch_a=" 👑" if fin and m["winner"]==m["away"] else ""
         xg_line=""
-        if not fin and not lv and m["xa"] is not None:
+        if not fin and not lv and m["xa"] is not None and m["pr"] is not None:
+            # Predicted score from pr dict (stored by bracket_probs_cached)
+            score_data = m["pr"].get("score")
+            pred_str = ""
+            if score_data:
+                ml, _ = score_data
+                pred_str = f' · Pred <b>{ml[0]}–{ml[1]}</b> ({ml[2]:.1f}%)'
             xg_line=(f'<div style="font-size:9px;color:#444;margin-top:1px;">'
                      f'xG {m["flag_h"]}{m["xa"]:.2f} {m["flag_a"]}{m["xb"]:.2f}'
-                     f' · Pen {m["ph"]:.0f}%/{m["pa"]:.0f}%</div>')
+                     f' · Pen {m["ph"]:.0f}%/{m["pa"]:.0f}%{pred_str}</div>')
         return (f'<div style="border:1px solid #1e1e1e;border-radius:5px;padding:7px 9px;background:#161616;margin-bottom:5px;">'
             f'<div style="margin-bottom:4px;">{sb}</div>'
             f'<div style="display:flex;align-items:center;gap:5px;padding:2px 3px;background:{bg_h};border-radius:3px;margin-bottom:1px;">'
@@ -1365,11 +1485,14 @@ with tab_bracket:
             ch_h = ch_a = ""
         else:
             sb = f'<span style="color:#555;font-size:9px;">{date}</span>'
-            pr2 = h2h(home, away, n=8_000)
+            pr2 = all_probs.get((home, away)) or h2h(home, away)
             col_h = "#4ade80" if pr2["team_a"] > pr2["team_b"] else "#f87171"
             col_a = "#4ade80" if pr2["team_b"] > pr2["team_a"] else "#f87171"
             if abs(pr2["team_a"]-pr2["team_b"]) < 5: col_h = col_a = "#facc15"
             bg_h = bg_a = "transparent"
+            # Predicted score
+            sc_data = pr2.get("score")
+            pred = f" · pred {sc_data[0][0]}–{sc_data[0][1]} ({sc_data[0][2]:.1f}%)" if sc_data else ""
             rh = f'<span style="font-size:11px;font-weight:800;color:{col_h};">{pr2["team_a"]:.1f}%</span>'
             ra = f'<span style="font-size:11px;font-weight:800;color:{col_a};">{pr2["team_b"]:.1f}%</span>'
             ch_h = ch_a = ""
