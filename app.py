@@ -4,103 +4,80 @@ import pandas as pd
 import random
 import requests
 from datetime import datetime, timedelta
-from collections import defaultdict
+from collections import defaultdict, Counter
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="2026 World Cup Simulator", page_icon="🏆", layout="wide")
 
 st.markdown("""
 <style>
-[data-testid="stAppViewContainer"] { background: #111; }
-[data-testid="stSidebar"]          { background: #0e0e0e; border-right: 1px solid #222; }
-[data-testid="stHeader"]           { background: transparent; }
-
-/* Tighten vertical spacing throughout */
-.block-container { padding-top: 1.2rem !important; padding-bottom: 1rem !important; }
-[data-testid="stVerticalBlock"] { gap: 0.4rem !important; }
-div[data-testid="column"] { padding: 0 4px !important; }
-
-/* Metrics — compact, dense */
-[data-testid="metric-container"]   { background: #161616; border: 1px solid #242424; border-radius: 4px; padding: 6px 10px !important; }
-[data-testid="stMetricLabel"]      { color: #777 !important; font-size: 10px !important; }
-[data-testid="stMetricValue"]      { color: #eee !important; font-size: 1.15rem !important; font-weight: 700 !important; }
-[data-testid="stMetricDelta"]      { font-size: 10px !important; }
-
-/* Tabs — compact */
-[data-testid="stTabs"] button                      { color: #666; font-size: 12px; font-weight: 500; padding: 6px 10px; }
-[data-testid="stTabs"] button[aria-selected="true"]  { color: #eee !important; border-bottom: 2px solid #888 !important; }
-[data-testid="stTabs"] { gap: 0; }
-
-/* Headings */
-h1 { color: #eee !important; font-weight: 800 !important; font-size: 1.35rem !important; margin-bottom: 0 !important; }
-h2 { color: #ccc !important; font-weight: 700 !important; font-size: 1.05rem !important; }
-h3, h4 { color: #aaa !important; font-weight: 600 !important; font-size: 0.92rem !important; }
-
-hr { border-color: #222 !important; margin: 0.6rem 0 !important; }
-
-[data-testid="baseButton-primary"] {
-    background: #ddd !important; color: #111 !important; font-weight: 700 !important;
-    border: none !important; border-radius: 4px !important; padding: 0.35rem 1rem !important;
-}
-
-[data-testid="stSidebarContent"]   { color: #aaa; }
-[data-testid="stCaptionContainer"] { color: #555 !important; font-size: 11px !important; }
-[data-testid="stDataFrame"]        { border: 1px solid #222; border-radius: 4px; font-size: 12px; }
-
-/* Sliders / selects more compact */
-[data-testid="stSlider"] { padding-top: 2px; padding-bottom: 2px; }
-label[data-testid="stWidgetLabel"] p { font-size: 12px !important; color: #999 !important; }
-
-/* Dense info strip */
-.densebar { display:flex; gap:0; border:1px solid #242424; border-radius:4px; overflow:hidden; margin-bottom:8px; }
-.densebar > div { flex:1; padding:6px 10px; border-right:1px solid #242424; }
-.densebar > div:last-child { border-right:none; }
-.densebar .dl { font-size:9px; color:#666; text-transform:uppercase; letter-spacing:.03em; }
-.densebar .dv { font-size:14px; color:#ddd; font-weight:700; }
+[data-testid="stAppViewContainer"] { background:#111; }
+[data-testid="stSidebar"]          { background:#0d0d0d; border-right:1px solid #1e1e1e; }
+[data-testid="stHeader"]           { background:transparent; }
+.block-container { padding-top:1rem !important; padding-bottom:1rem !important; }
+[data-testid="stVerticalBlock"]    { gap:0.35rem !important; }
+div[data-testid="column"]          { padding:0 3px !important; }
+[data-testid="metric-container"]   { background:#161616; border:1px solid #242424; border-radius:4px; padding:6px 10px !important; }
+[data-testid="stMetricLabel"]      { color:#666 !important; font-size:10px !important; }
+[data-testid="stMetricValue"]      { color:#ddd !important; font-size:1.1rem !important; font-weight:700 !important; }
+[data-testid="stMetricDelta"]      { font-size:10px !important; }
+[data-testid="stTabs"] button                       { color:#555; font-size:12px; font-weight:500; padding:5px 9px; }
+[data-testid="stTabs"] button[aria-selected="true"] { color:#ccc !important; border-bottom:2px solid #777 !important; }
+h1 { color:#ddd !important; font-weight:800 !important; font-size:1.3rem !important; margin-bottom:0 !important; }
+h2 { color:#bbb !important; font-weight:700 !important; font-size:1rem !important; }
+h3,h4 { color:#999 !important; font-weight:600 !important; font-size:0.9rem !important; }
+hr { border-color:#1e1e1e !important; margin:0.5rem 0 !important; }
+[data-testid="baseButton-primary"]  { background:#ccc !important; color:#111 !important; font-weight:700 !important; border:none !important; border-radius:4px !important; }
+[data-testid="stSidebarContent"]    { color:#888; }
+[data-testid="stCaptionContainer"]  { color:#444 !important; font-size:11px !important; }
+[data-testid="stDataFrame"]         { border:1px solid #1e1e1e; border-radius:4px; }
+[data-testid="stSlider"]            { padding-top:2px; padding-bottom:2px; }
+label[data-testid="stWidgetLabel"] p { font-size:12px !important; color:#888 !important; }
+.dbar { display:flex; border:1px solid #1e1e1e; border-radius:4px; overflow:hidden; margin-bottom:6px; }
+.dbar>div { flex:1; padding:5px 9px; border-right:1px solid #1e1e1e; }
+.dbar>div:last-child { border-right:none; }
+.dbar .dl { font-size:9px; color:#555; text-transform:uppercase; letter-spacing:.04em; }
+.dbar .dv { font-size:13px; color:#ccc; font-weight:700; }
 </style>
 """, unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# DATA — Updated June 2026
-# Elo ratings from eloratings.net · atk/def calibrated from 2024-2026 results
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════
+# DATA
+# ══════════════════════════════════════════════════════════════════════
 BASE_TEAMS = {
-    # Team: flag, attack λ, defense multiplier, Elo
-    "Argentina":    {"flag":"🇦🇷","atk":2.10,"def":0.74,"elo":2090},
-    "France":       {"flag":"🇫🇷","atk":2.00,"def":0.73,"elo":2055},
-    "Spain":        {"flag":"🇪🇸","atk":1.98,"def":0.68,"elo":2045},
-    "England":      {"flag":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","atk":1.82,"def":0.74,"elo":2010},
-    "Brazil":       {"flag":"🇧🇷","atk":1.85,"def":0.76,"elo":1995},
-    "Germany":      {"flag":"🇩🇪","atk":1.88,"def":0.77,"elo":1985},
-    "Portugal":     {"flag":"🇵🇹","atk":1.80,"def":0.80,"elo":1970},
-    "Netherlands":  {"flag":"🇳🇱","atk":1.76,"def":0.78,"elo":1960},
-    "Morocco":      {"flag":"🇲🇦","atk":1.45,"def":0.65,"elo":1920},
-    "Mexico":       {"flag":"🇲🇽","atk":1.60,"def":0.82,"elo":1915},
-    "Switzerland":  {"flag":"🇨🇭","atk":1.62,"def":0.77,"elo":1912},
-    "USA":          {"flag":"🇺🇸","atk":1.58,"def":0.84,"elo":1900},
-    "Belgium":      {"flag":"🇧🇪","atk":1.68,"def":0.84,"elo":1895},
-    "Colombia":     {"flag":"🇨🇴","atk":1.65,"def":0.82,"elo":1892},
-    "Japan":        {"flag":"🇯🇵","atk":1.55,"def":0.80,"elo":1878},
-    "Austria":      {"flag":"🇦🇹","atk":1.58,"def":0.83,"elo":1870},
-    "Norway":       {"flag":"🇳🇴","atk":1.70,"def":0.84,"elo":1868},
-    "Sweden":       {"flag":"🇸🇪","atk":1.60,"def":0.83,"elo":1855},
-    "Canada":       {"flag":"🇨🇦","atk":1.58,"def":0.85,"elo":1850},
-    "Senegal":      {"flag":"🇸🇳","atk":1.48,"def":0.84,"elo":1842},
-    "Croatia":      {"flag":"🇭🇷","atk":1.46,"def":0.82,"elo":1835},
-    "Ivory Coast":  {"flag":"🇨🇮","atk":1.50,"def":0.86,"elo":1832},
-    "Australia":    {"flag":"🇦🇺","atk":1.44,"def":0.87,"elo":1825},
-    "Ecuador":      {"flag":"🇪🇨","atk":1.40,"def":0.85,"elo":1800},
-    "Egypt":        {"flag":"🇪🇬","atk":1.45,"def":0.83,"elo":1795},
-    "South Africa": {"flag":"🇿🇦","atk":1.32,"def":0.89,"elo":1778},
-    "Ghana":        {"flag":"🇬🇭","atk":1.40,"def":0.89,"elo":1770},
-    "Bosnia":       {"flag":"🇧🇦","atk":1.38,"def":0.87,"elo":1765},
-    "Iran":         {"flag":"🇮🇷","atk":1.28,"def":0.86,"elo":1755},
-    "Paraguay":     {"flag":"🇵🇾","atk":1.33,"def":0.87,"elo":1748},
-    "Cape Verde":   {"flag":"🇨🇻","atk":1.22,"def":0.89,"elo":1700},
-    "Uzbekistan":   {"flag":"🇺🇿","atk":1.25,"def":0.90,"elo":1695},
+    "Argentina":   {"flag":"🇦🇷","atk":2.10,"def":0.74,"elo":2090},
+    "France":      {"flag":"🇫🇷","atk":2.00,"def":0.73,"elo":2055},
+    "Spain":       {"flag":"🇪🇸","atk":1.98,"def":0.68,"elo":2045},
+    "England":     {"flag":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","atk":1.82,"def":0.74,"elo":2010},
+    "Brazil":      {"flag":"🇧🇷","atk":1.85,"def":0.76,"elo":1995},
+    "Germany":     {"flag":"🇩🇪","atk":1.88,"def":0.77,"elo":1985},
+    "Portugal":    {"flag":"🇵🇹","atk":1.80,"def":0.80,"elo":1970},
+    "Netherlands": {"flag":"🇳🇱","atk":1.76,"def":0.78,"elo":1960},
+    "Morocco":     {"flag":"🇲🇦","atk":1.45,"def":0.65,"elo":1920},
+    "Mexico":      {"flag":"🇲🇽","atk":1.60,"def":0.82,"elo":1915},
+    "Switzerland": {"flag":"🇨🇭","atk":1.62,"def":0.77,"elo":1912},
+    "USA":         {"flag":"🇺🇸","atk":1.58,"def":0.84,"elo":1900},
+    "Belgium":     {"flag":"🇧🇪","atk":1.68,"def":0.84,"elo":1895},
+    "Colombia":    {"flag":"🇨🇴","atk":1.65,"def":0.82,"elo":1892},
+    "Japan":       {"flag":"🇯🇵","atk":1.55,"def":0.80,"elo":1878},
+    "Austria":     {"flag":"🇦🇹","atk":1.58,"def":0.83,"elo":1870},
+    "Norway":      {"flag":"🇳🇴","atk":1.70,"def":0.84,"elo":1868},
+    "Sweden":      {"flag":"🇸🇪","atk":1.60,"def":0.83,"elo":1855},
+    "Canada":      {"flag":"🇨🇦","atk":1.58,"def":0.85,"elo":1850},
+    "Senegal":     {"flag":"🇸🇳","atk":1.48,"def":0.84,"elo":1842},
+    "Croatia":     {"flag":"🇭🇷","atk":1.46,"def":0.82,"elo":1835},
+    "Ivory Coast": {"flag":"🇨🇮","atk":1.50,"def":0.86,"elo":1832},
+    "Australia":   {"flag":"🇦🇺","atk":1.44,"def":0.87,"elo":1825},
+    "Ecuador":     {"flag":"🇪🇨","atk":1.40,"def":0.85,"elo":1800},
+    "Egypt":       {"flag":"🇪🇬","atk":1.45,"def":0.83,"elo":1795},
+    "South Africa":{"flag":"🇿🇦","atk":1.32,"def":0.89,"elo":1778},
+    "Ghana":       {"flag":"🇬🇭","atk":1.40,"def":0.89,"elo":1770},
+    "Bosnia":      {"flag":"🇧🇦","atk":1.38,"def":0.87,"elo":1765},
+    "Iran":        {"flag":"🇮🇷","atk":1.28,"def":0.86,"elo":1755},
+    "Paraguay":    {"flag":"🇵🇾","atk":1.33,"def":0.87,"elo":1748},
+    "Cape Verde":  {"flag":"🇨🇻","atk":1.22,"def":0.89,"elo":1700},
+    "Uzbekistan":  {"flag":"🇺🇿","atk":1.25,"def":0.90,"elo":1695},
 }
 
-# Historical penalty shootout win rates (WC + major tournaments through 2024)
 PENALTY_WIN_RATE = {
     "Germany":0.75,"Argentina":0.71,"France":0.60,"Spain":0.50,
     "Brazil":0.50,"Portugal":0.67,"Netherlands":0.40,"England":0.44,
@@ -112,9 +89,8 @@ PENALTY_WIN_RATE = {
     "Paraguay":0.60,"Ecuador":0.50,"Cape Verde":0.50,"Uzbekistan":0.50,
 }
 
-DEFAULT_HOST_ADVANTAGE = {"USA":0.22,"Mexico":0.30,"Canada":0.18}
+DEFAULT_HOST_ADV = {"USA":0.22,"Mexico":0.30,"Canada":0.18}
 
-# Squad goal-share data (updated June 2026)
 FALLBACK_SQUADS = {
     "Argentina":   [("L. Messi",0.35),("J. Álvarez",0.22),("L. Martínez",0.12),("R. De Paul",0.08),("Other",0.23)],
     "France":      [("K. Mbappé",0.38),("M. Thuram",0.18),("A. Griezmann",0.14),("O. Dembélé",0.10),("Other",0.20)],
@@ -150,7 +126,6 @@ FALLBACK_SQUADS = {
     "Uzbekistan":  [("E. Shomurodov",0.40),("Other",0.60)],
 }
 
-# API name mapping
 API_NAME_MAP = {
     "France":"France","Argentina":"Argentina","Spain":"Spain","England":"England",
     "Brazil":"Brazil","Germany":"Germany","Netherlands":"Netherlands","Portugal":"Portugal",
@@ -166,1952 +141,1503 @@ API_NAME_MAP = {
 WC2026_LEAGUE_ID = 1
 WC2026_SEASON    = 2026
 
+# ── Real WC 2026 R32 results (all 16 matches completed Jun 28 – Jul 3) ─────────
+# Format: (home, away, date, goals_home, goals_away, status, winner)
+# status: FT=90min, AET=after extra time, PEN=after penalties
+R32_RESULTS = [
+    ("South Africa","Canada",     "Jun 28", 0, 1, "FT",  "Canada"),
+    ("Brazil",      "Japan",      "Jun 29", 2, 1, "FT",  "Brazil"),
+    ("Germany",     "Paraguay",   "Jun 29", 1, 1, "PEN", "Paraguay"),   # Paraguay 4-3 on pens
+    ("Netherlands", "Morocco",    "Jun 29", 1, 1, "PEN", "Morocco"),    # Morocco 3-2 on pens
+    ("Norway",      "Ivory Coast","Jun 30", 2, 1, "FT",  "Norway"),
+    ("France",      "Sweden",     "Jun 30", 3, 0, "FT",  "France"),
+    ("Mexico",      "Ecuador",    "Jun 30", 2, 0, "FT",  "Mexico"),
+    ("England",     "DR Congo",   "Jul 1",  2, 1, "AET", "England"),
+    ("Belgium",     "Senegal",    "Jul 1",  3, 2, "AET", "Belgium"),
+    ("USA",         "Bosnia",     "Jul 1",  2, 0, "FT",  "USA"),
+    ("Spain",       "Austria",    "Jul 2",  3, 0, "FT",  "Spain"),
+    ("Portugal",    "Croatia",    "Jul 2",  2, 1, "FT",  "Portugal"),
+    ("Switzerland", "Algeria",    "Jul 2",  2, 0, "FT",  "Switzerland"),
+    ("Australia",   "Egypt",      "Jul 3",  1, 1, "PEN", "Egypt"),      # Egypt 4-2 on pens
+    ("Argentina",   "Cape Verde", "Jul 3",  3, 2, "AET", "Argentina"),
+    ("Colombia",    "Ghana",      "Jul 3",  1, 0, "FT",  "Colombia"),
+]
+
+# ── Round of 16 fixtures (Jul 4-7, some in progress/upcoming as of Jul 5) ─────
+R16_FIXTURES = [
+    ("Morocco",      "Canada",      "Jul 4",  3, 0, "FT",  "Morocco"),    # completed
+    ("France",       "Paraguay",    "Jul 4",  None, None, "FT", "France"), # France won, score TBC
+    ("Brazil",       "Norway",      "Jul 5",  None, None, "NS", None),     # today 4pm ET
+    ("Mexico",       "England",     "Jul 5",  None, None, "NS", None),     # today 8pm ET
+    ("Portugal",     "Spain",       "Jul 6",  None, None, "NS", None),
+    ("Belgium",      "USA",         "Jul 6",  None, None, "NS", None),
+    ("Egypt",        "Argentina",   "Jul 7",  None, None, "NS", None),
+    ("Switzerland",  "Colombia",    "Jul 7",  None, None, "NS", None),
+]
+
 R32_BRACKET = [
     ("South Africa","Canada",     "Jun 28"),
     ("Brazil",      "Japan",      "Jun 29"),
-    ("Morocco",     "Netherlands","Jun 29"),
+    ("Germany",     "Paraguay",   "Jun 29"),
+    ("Netherlands", "Morocco",    "Jun 29"),
     ("Norway",      "Ivory Coast","Jun 30"),
-    ("France",      "Sweden",     "Jul 1"),
+    ("France",      "Sweden",     "Jun 30"),
+    ("Mexico",      "Ecuador",    "Jun 30"),
+    ("England",     "DR Congo",   "Jul 1"),
+    ("Belgium",     "Senegal",    "Jul 1"),
     ("USA",         "Bosnia",     "Jul 1"),
-    ("England",     "Senegal",    "Jul 1"),
-    ("Belgium",     "TBD",        "Jul 1"),
     ("Spain",       "Austria",    "Jul 2"),
-    ("Switzerland", "Iran",       "Jul 2"),
-    ("Portugal",    "Ghana",      "Jul 2"),
+    ("Portugal",    "Croatia",    "Jul 2"),
+    ("Switzerland", "Algeria",    "Jul 2"),
     ("Australia",   "Egypt",      "Jul 3"),
     ("Argentina",   "Cape Verde", "Jul 3"),
-    ("Colombia",    "Croatia",    "Jul 3"),
-    ("Mexico",      "TBD",        "Jul 4"),
-    ("Germany",     "Paraguay",   "Jul 4"),
+    ("Colombia",    "Ghana",      "Jul 3"),
 ]
 
-# ── Live WC 2026 results ───────────────────────────────────────────────────────
-@st.cache_data(ttl=300, show_spinner=False)   # refresh every 5 minutes
-def fetch_wc2026_results(api_key: str, league_id: int) -> tuple[list[dict], str]:
-    """
-    Fetch all completed AND live WC 2026 fixtures.
-    Returns (matches, debug_log).
-    Each match: {home, away, goals_home, goals_away, status, date, fixture_id, winner}
-    status: 'FT' | 'AET' | 'PEN' | 'LIVE' | 'NS' (not started)
-    """
-    debug = []
-    finished_statuses = {"FT", "AET", "PEN", "AWD", "WO"}
-
-    url  = (f"https://v3.football.api-sports.io/fixtures"
-            f"?league={league_id}&season={WC2026_SEASON}")
-    data = api_get(url, api_key)
-    raw  = (data or {}).get("response") or []
-    debug.append(f"Total fixtures returned: {len(raw)}")
-
-    matches = []
-    for fix in raw:
-        f        = fix.get("fixture") or {}
-        teams    = fix.get("teams") or {}
-        goals    = fix.get("goals") or {}
-        score    = fix.get("score") or {}
-        status   = (f.get("status") or {}).get("short", "NS")
-        date_str = f.get("date", "")[:10]
-        fix_id   = f.get("id", "")
-
-        home_api = (teams.get("home") or {}).get("name", "")
-        away_api = (teams.get("away") or {}).get("name", "")
-        home     = API_NAME_MAP.get(home_api, home_api)
-        away     = API_NAME_MAP.get(away_api, away_api)
-        gh       = goals.get("home")
-        ga       = goals.get("away")
-
-        # Determine winner for knockout matches
-        winner = None
-        if status in finished_statuses and gh is not None and ga is not None:
-            if gh > ga:
-                winner = home
-            elif ga > gh:
-                winner = away
-            else:
-                # Check penalty score
-                pen = score.get("penalty") or {}
-                ph  = pen.get("home")
-                pa  = pen.get("away")
-                if ph is not None and pa is not None:
-                    winner = home if ph > pa else away
-
-        matches.append({
-            "home":       home,
-            "away":       away,
-            "goals_home": int(gh) if gh is not None else None,
-            "goals_away": int(ga) if ga is not None else None,
-            "status":     status,
-            "date":       date_str,
-            "fixture_id": fix_id,
-            "winner":     winner,
-            "home_api":   home_api,
-            "away_api":   away_api,
-        })
-
-    finished = [m for m in matches if m["status"] in finished_statuses]
-    live     = [m for m in matches if m["status"] in {"1H","2H","HT","ET","BT","P","INT"}]
-    debug.append(f"Finished: {len(finished)}  |  Live: {len(live)}  |  Upcoming: {len(matches)-len(finished)-len(live)}")
-    for m in finished[:5]:
-        debug.append(f"  {m['date']} {m['home']} {m['goals_home']}–{m['goals_away']} {m['away']} [{m['status']}] → {m['winner']}")
-
-    return matches, "\n".join(debug)
-
-
-def build_live_bracket(matches: list[dict]) -> list[dict]:
-    """
-    Merge API results into R32_BRACKET entries.
-    Returns list of dicts with real scores and winner where known.
-    """
-    # Build lookup: (home_lower, away_lower) → match
-    lookup: dict = {}
-    for m in matches:
-        key1 = (m["home"].lower(), m["away"].lower())
-        key2 = (m["away"].lower(), m["home"].lower())
-        lookup[key1] = m
-        lookup[key2] = m
-
-    bracket = []
-    for home, away, date in R32_BRACKET:
-        if away == "TBD":
-            bracket.append({
-                "home": home, "away": "TBD", "date": date,
-                "goals_home": None, "goals_away": None,
-                "status": "TBD", "winner": None,
-                "flag_h": BASE_TEAMS.get(home, {}).get("flag", "🏳️"),
-                "flag_a": "🏳️",
-            })
-            continue
-
-        key  = (home.lower(), away.lower())
-        live = lookup.get(key)
-        if live:
-            bracket.append({
-                "home":       home,
-                "away":       away,
-                "date":       live["date"] or date,
-                "goals_home": live["goals_home"],
-                "goals_away": live["goals_away"],
-                "status":     live["status"],
-                "winner":     live["winner"],
-                "flag_h":     BASE_TEAMS.get(home, {}).get("flag", "🏳️"),
-                "flag_a":     BASE_TEAMS.get(away, {}).get("flag", "🏳️"),
-            })
-        else:
-            bracket.append({
-                "home": home, "away": away, "date": date,
-                "goals_home": None, "goals_away": None,
-                "status": "NS", "winner": None,
-                "flag_h": BASE_TEAMS.get(home, {}).get("flag", "🏳️"),
-                "flag_a": BASE_TEAMS.get(away, {}).get("flag", "🏳️"),
-            })
-    return bracket
-
-# Updated FC 25 / EA FC 25 ratings (June 2026 patch)
+# ── Player cards (EA FC 25, June 2026 patch) ──────────────────────────────────
 # (name, team, pos, overall, pace, shooting, passing, dribbling, defending, physical)
 PLAYER_CARDS_FALLBACK = [
-    # ── Argentina ───────────────────────────────────────────────
-    ("L. Messi",          "Argentina",   "RW",  94, 82, 91, 92, 96, 35, 66),
-    ("E. Martínez",       "Argentina",   "GK",  88,  0,  0,  0,  0,  0,  0),
-    ("C. Romero",         "Argentina",   "CB",  88, 72, 52, 70, 73, 89, 85),
-    ("R. De Paul",        "Argentina",   "CM",  85, 74, 74, 86, 84, 76, 79),
-    ("J. Álvarez",        "Argentina",   "ST",  85, 86, 84, 77, 86, 45, 78),
-    ("L. Martínez",       "Argentina",   "ST",  84, 83, 83, 72, 82, 44, 77),
-    ("G. Lo Celso",       "Argentina",   "CM",  83, 75, 73, 85, 86, 65, 72),
-    ("N. Molina",         "Argentina",   "RB",  83, 83, 67, 75, 79, 75, 76),
-    ("E. Fernández",      "Argentina",   "CM",  83, 69, 73, 84, 81, 77, 77),
-    ("Á. Di María",       "Argentina",   "LW",  82, 82, 79, 83, 86, 35, 64),
-    ("L. Paredes",        "Argentina",   "CDM", 81, 62, 65, 84, 77, 73, 73),
+    # Argentina
+    ("L. Messi","Argentina","RW",94,82,91,92,96,35,66),
+    ("E. Martínez","Argentina","GK",88,0,0,0,0,0,0),
+    ("C. Romero","Argentina","CB",88,72,52,70,73,89,85),
+    ("R. De Paul","Argentina","CM",85,74,74,86,84,76,79),
+    ("J. Álvarez","Argentina","ST",85,86,84,77,86,45,78),
+    ("L. Martínez","Argentina","ST",84,83,83,72,82,44,77),
+    ("G. Lo Celso","Argentina","CM",83,75,73,85,86,65,72),
+    ("N. Molina","Argentina","RB",83,83,67,75,79,75,76),
+    ("E. Fernández","Argentina","CM",83,69,73,84,81,77,77),
+    ("Á. Di María","Argentina","LW",82,82,79,83,86,35,64),
+    ("L. Paredes","Argentina","CDM",81,62,65,84,77,73,73),
+    # France
+    ("K. Mbappé","France","ST",92,97,91,81,93,37,77),
+    ("M. Maignan","France","GK",88,0,0,0,0,0,0),
+    ("O. Dembélé","France","RW",87,93,82,80,90,36,70),
+    ("A. Griezmann","France","CAM",87,76,85,87,86,55,74),
+    ("J. Koundé","France","RB",86,79,53,76,80,84,75),
+    ("A. Tchouaméni","France","CDM",85,71,64,82,77,85,84),
+    ("A. Upamecano","France","CB",85,77,48,69,70,86,84),
+    ("T. Hernández","France","LB",85,85,63,76,79,77,81),
+    ("A. Camavinga","France","CM",85,81,69,83,85,76,77),
+    ("K. Coman","France","RW",85,93,79,79,87,39,73),
+    ("M. Thuram","France","ST",84,83,82,73,81,43,85),
+    # Spain
+    ("G. Rodri","Spain","CDM",91,66,72,89,84,89,79),
+    ("P. Pedri","Spain","CM",89,75,76,89,92,66,69),
+    ("L. Yamal","Spain","RW",87,92,81,81,91,30,62),
+    ("D. Olmo","Spain","CAM",86,79,81,85,87,62,73),
+    ("D. Carvajal","Spain","RB",86,76,65,83,79,83,77),
+    ("A. Laporte","Spain","CB",85,69,51,79,73,87,81),
+    ("M. Cucurella","Spain","LB",83,76,56,76,77,80,78),
+    ("U. Simón","Spain","GK",85,0,0,0,0,0,0),
+    ("A. Morata","Spain","ST",83,77,81,75,79,46,79),
+    ("R. Le Normand","Spain","CB",83,69,45,71,66,84,82),
+    ("F. Torres","Spain","ST",82,83,82,75,82,40,73),
+    # England
+    ("H. Kane","England","ST",91,71,94,84,84,48,83),
+    ("P. Foden","England","CAM",89,83,84,87,91,45,70),
+    ("B. Saka","England","RW",88,86,83,85,88,56,73),
+    ("J. Bellingham","England","CM",88,80,85,84,87,74,85),
+    ("T. Alexander-Arnold","England","RB",88,76,73,91,81,68,71),
+    ("D. Rice","England","CDM",87,73,68,84,80,86,84),
+    ("C. Palmer","England","CAM",85,74,84,84,88,52,70),
+    ("J. Pickford","England","GK",85,0,0,0,0,0,0),
+    ("O. Watkins","England","ST",84,83,82,72,80,46,79),
+    ("J. Trippier","England","RB",83,73,69,84,75,75,74),
+    ("M. Guehi","England","CB",83,69,45,69,67,84,81),
+    # Brazil
+    ("Vinicius Jr.","Brazil","LW",93,96,85,78,95,33,74),
+    ("Alisson","Brazil","GK",91,0,0,0,0,0,0),
+    ("E. Militão","Brazil","CB",87,77,49,69,73,88,81),
+    ("Casemiro","Brazil","CDM",86,64,71,78,75,88,87),
+    ("L. Paquetá","Brazil","CM",86,77,79,84,87,57,75),
+    ("Rodrygo","Brazil","RW",86,88,82,79,88,36,69),
+    ("Raphinha","Brazil","RW",86,85,83,81,86,41,72),
+    ("G. Martinelli","Brazil","LW",85,91,81,74,85,39,78),
+    ("A. Savinho","Brazil","RW",82,90,76,75,84,33,68),
+    ("D. Danilo","Brazil","RB",82,77,61,78,74,78,78),
+    ("M. Renan","Brazil","CB",81,71,43,66,66,82,80),
+    # Germany
+    ("F. Wirtz","Germany","CAM",89,80,82,87,91,49,71),
+    ("J. Musiala","Germany","CAM",89,86,83,84,92,53,73),
+    ("J. Kimmich","Germany","CDM",89,69,73,92,83,83,77),
+    ("M. Ter Stegen","Germany","GK",90,0,0,0,0,0,0),
+    ("A. Rüdiger","Germany","CB",87,79,53,66,67,88,89),
+    ("L. Goretzka","Germany","CM",85,76,79,83,83,80,86),
+    ("K. Havertz","Germany","ST",85,78,85,81,83,58,80),
+    ("T. Müller","Germany","CAM",83,68,80,86,82,57,75),
+    ("D. Raum","Germany","LB",83,81,61,79,75,75,74),
+    ("B. Pavard","Germany","CB",83,75,56,74,70,83,79),
+    ("L. Nmecha","Germany","ST",82,83,81,70,79,40,82),
+    # Portugal
+    ("R. Dias","Portugal","CB",89,73,53,71,71,90,83),
+    ("C. Ronaldo","Portugal","ST",87,80,92,77,84,33,76),
+    ("B. Fernandes","Portugal","CAM",87,75,83,89,85,61,78),
+    ("R. Leão","Portugal","LW",86,93,82,77,87,35,75),
+    ("N. Mendes","Portugal","LB",86,88,63,77,81,79,77),
+    ("J. Cancelo","Portugal","RB",86,81,69,83,83,73,73),
+    ("J. Félix","Portugal","CAM",85,83,82,82,88,41,71),
+    ("D. Costa","Portugal","GK",85,0,0,0,0,0,0),
+    ("G. Ramos","Portugal","ST",84,75,84,70,78,42,78),
+    ("P. Neves","Portugal","CM",84,73,70,84,82,74,76),
+    ("D. Dalot","Portugal","RB",83,81,61,75,77,75,73),
+    # Netherlands
+    ("V. van Dijk","Netherlands","CB",90,76,61,73,73,92,89),
+    ("F. de Jong","Netherlands","CM",88,75,73,89,88,75,77),
+    ("C. Gakpo","Netherlands","LW",85,86,83,77,84,43,79),
+    ("X. Simons","Netherlands","CAM",85,84,80,84,86,52,70),
+    ("M. Depay","Netherlands","ST",84,83,85,78,86,38,76),
+    ("D. Dumfries","Netherlands","RB",84,85,66,73,74,77,85),
+    ("B. Verbruggen","Netherlands","GK",84,0,0,0,0,0,0),
+    ("S. de Vrij","Netherlands","CB",84,69,51,73,69,86,81),
+    ("T. Reijnders","Netherlands","CM",84,76,73,81,81,72,77),
+    ("N. Timber","Netherlands","CB",83,75,47,71,71,83,79),
+    ("R. Malen","Netherlands","LW",82,89,78,72,83,35,70),
+    # Morocco
+    ("A. Hakimi","Morocco","RB",87,91,73,77,83,71,77),
+    ("Y. Bounou","Morocco","GK",87,0,0,0,0,0,0),
+    ("Y. En-Nesyri","Morocco","ST",83,84,82,65,76,43,78),
+    ("H. Ziyech","Morocco","RW",83,79,81,84,85,41,66),
+    ("S. Amrabat","Morocco","CDM",83,74,59,79,79,83,81),
+    ("N. Aguerd","Morocco","CB",82,69,45,67,63,83,79),
+    ("S. Ezzalzouli","Morocco","LW",81,86,74,76,82,36,68),
+    ("I. Ounahi","Morocco","CM",80,73,66,79,80,70,72),
+    ("R. Saïss","Morocco","CB",80,63,49,69,65,83,79),
+    # Belgium
+    ("K. De Bruyne","Belgium","CAM",91,75,86,94,88,65,79),
+    ("T. Courtois","Belgium","GK",91,0,0,0,0,0,0),
+    ("R. Lukaku","Belgium","ST",86,83,87,68,81,41,93),
+    ("A. Doku","Belgium","LW",85,96,76,74,89,32,68),
+    ("L. Trossard","Belgium","LW",84,83,81,79,83,47,73),
+    ("J. Vertonghen","Belgium","CB",82,65,47,73,69,85,79),
+    ("Y. Carrasco","Belgium","LW",82,85,77,77,84,41,73),
+    ("A. Onana","Belgium","CDM",82,70,62,80,76,80,78),
+    # Colombia
+    ("L. Díaz","Colombia","LW",86,91,81,79,89,41,74),
+    ("M. Caicedo","Colombia","CDM",85,75,63,79,79,85,83),
+    ("J. Cuadrado","Colombia","RW",83,85,75,81,83,55,71),
+    ("Y. Mina","Colombia","CB",83,65,53,61,59,84,85),
+    ("D. Ospina","Colombia","GK",84,0,0,0,0,0,0),
+    ("J. Lerma","Colombia","CDM",81,71,61,75,71,81,83),
+    ("J. Muriel","Colombia","ST",81,85,79,73,79,37,73),
+    ("R. Falcao","Colombia","ST",81,69,84,70,78,38,74),
+    # Norway
+    ("E. Haaland","Norway","ST",95,89,96,69,82,46,89),
+    ("M. Ødegaard","Norway","CAM",88,79,83,91,91,59,69),
+    ("A. Sørloth","Norway","ST",83,79,83,67,73,47,87),
+    ("J. Strand Larsen","Norway","ST",80,79,79,63,73,39,83),
+    ("S. Berge","Norway","CM",80,69,67,79,75,77,75),
+    ("R. Nyland","Norway","GK",79,0,0,0,0,0,0),
+    # Switzerland
+    ("Y. Sommer","Switzerland","GK",86,0,0,0,0,0,0),
+    ("G. Xhaka","Switzerland","CDM",85,65,73,86,78,81,79),
+    ("M. Akanji","Switzerland","CB",85,77,49,71,71,86,81),
+    ("X. Shaqiri","Switzerland","RW",83,81,81,83,84,43,73),
+    ("F. Schär","Switzerland","CB",82,69,57,73,67,83,79),
+    ("B. Embolo","Switzerland","ST",81,81,79,73,77,45,83),
+    ("R. Vargas","Switzerland","LW",80,83,75,77,79,37,67),
+    # USA
+    ("C. Pulisic","USA","LW",85,89,81,82,87,45,75),
+    ("T. Adams","USA","CDM",82,73,59,77,73,83,83),
+    ("W. McKennie","USA","CM",81,77,71,76,76,73,83),
+    ("R. Reyna","USA","CAM",81,81,74,80,84,44,66),
+    ("M. Turner","USA","GK",80,0,0,0,0,0,0),
+    ("J. Sargent","USA","ST",80,77,78,67,74,45,77),
+    ("A. Dest","USA","RB",80,85,61,73,77,65,69),
+    ("F. Weah","USA","RW",79,87,73,71,78,37,73),
+    # Mexico
+    ("G. Ochoa","Mexico","GK",84,0,0,0,0,0,0),
+    ("H. Lozano","Mexico","RW",83,91,79,77,83,39,71),
+    ("R. Jiménez","Mexico","ST",83,74,83,71,77,43,81),
+    ("A. Vega","Mexico","LW",80,87,75,73,80,36,69),
+    ("H. Moreno","Mexico","CB",80,67,45,67,65,81,79),
+    ("E. Álvarez","Mexico","CM",79,71,67,77,75,71,73),
+    # Japan
+    ("W. Endo","Japan","CDM",80,67,61,77,73,80,77),
+    ("D. Kamada","Japan","CAM",80,77,77,79,80,57,71),
+    ("T. Minamino","Japan","CAM",80,81,78,79,81,55,69),
+    ("Ritsu Doan","Japan","LW",80,84,77,77,81,43,68),
+    ("H. Ito","Japan","RB",79,81,59,71,71,71,71),
+    ("S. Itakura","Japan","CB",79,69,45,67,65,80,77),
+    ("K. Gonda","Japan","GK",78,0,0,0,0,0,0),
+    ("A. Ueda","Japan","ST",78,78,77,63,71,39,75),
+    # Austria
+    ("D. Alaba","Austria","CB",86,77,71,85,83,85,75),
+    ("M. Sabitzer","Austria","CM",83,77,77,81,81,67,77),
+    ("M. Arnautovic","Austria","ST",82,73,81,73,75,45,81),
+    ("C. Baumgartner","Austria","CM",80,77,73,77,79,59,71),
+    ("P. Pentz","Austria","GK",77,0,0,0,0,0,0),
+    # Sweden
+    ("V. Gyökeres","Sweden","ST",86,83,87,69,82,43,86),
+    ("A. Isak","Sweden","ST",85,89,83,73,85,39,77),
+    ("D. Kulusevski","Sweden","RW",84,85,79,81,84,55,76),
+    ("E. Forsberg","Sweden","CAM",82,79,77,83,83,51,69),
+    ("R. Olsen","Sweden","GK",80,0,0,0,0,0,0),
+    # Canada
+    ("A. Davies","Canada","LB",86,96,69,79,84,73,75),
+    ("J. David","Canada","ST",84,83,86,73,82,39,73),
+    ("T. Buchanan","Canada","LW",79,87,71,71,77,37,71),
+    ("M. Borjan","Canada","GK",78,0,0,0,0,0,0),
+    ("S. Larin","Canada","ST",78,77,77,65,71,39,75),
+    # Senegal
+    ("S. Mané","Senegal","LW",87,90,84,79,88,44,78),
+    ("É. Mendy","Senegal","GK",86,0,0,0,0,0,0),
+    ("K. Koulibaly","Senegal","CB",86,73,53,65,63,89,87),
+    ("I. Sarr","Senegal","RW",83,91,77,73,81,37,73),
+    ("P. Gueye","Senegal","CDM",83,75,63,77,75,83,81),
+    ("N. Jackson","Senegal","ST",81,84,79,71,77,39,77),
+    # Croatia
+    ("J. Gvardiol","Croatia","CB",88,83,57,73,77,88,83),
+    ("L. Modrić","Croatia","CM",87,73,77,92,91,63,68),
+    ("D. Livaković","Croatia","GK",85,0,0,0,0,0,0),
+    ("M. Brozović","Croatia","CDM",84,69,69,87,81,79,75),
+    ("A. Kramarić","Croatia","ST",83,77,83,73,81,43,75),
+    ("I. Perišić","Croatia","LW",83,83,78,78,80,64,80),
+    # Ivory Coast
+    ("S. Haller","Ivory Coast","ST",82,75,83,61,73,43,87),
+    ("W. Zaha","Ivory Coast","RW",81,87,75,73,83,39,73),
+    ("N. Pépé","Ivory Coast","RW",80,87,77,75,84,37,71),
+    ("S. Aurier","Ivory Coast","RB",80,83,63,71,71,73,77),
+    ("F. Konaté","Ivory Coast","GK",78,0,0,0,0,0,0),
+    # Australia
+    ("M. Ryan","Australia","GK",80,0,0,0,0,0,0),
+    ("M. Leckie","Australia","RW",78,85,71,73,77,43,71),
+    ("H. Souttar","Australia","CB",78,63,45,65,61,79,81),
+    ("A. Hrustic","Australia","CM",76,71,69,75,73,63,67),
+    # Egypt
+    ("M. Salah","Egypt","RW",91,88,89,83,90,45,78),
+    ("O. Marmoush","Egypt","ST",86,85,84,77,82,46,77),
+    ("M. El-Shenawy","Egypt","GK",79,0,0,0,0,0,0),
+    ("A. Hegazi","Egypt","CB",78,63,45,63,59,79,81),
+    # Ecuador
+    ("M. Caicedo","Ecuador","CDM",85,75,63,79,79,85,83),
+    ("P. Hincapié","Ecuador","CB",81,75,47,67,67,81,77),
+    ("E. Valencia","Ecuador","ST",80,77,78,63,69,43,83),
+    ("H. Galíndez","Ecuador","GK",77,0,0,0,0,0,0),
+    # Ghana
+    ("T. Partey","Ghana","CDM",84,73,66,81,77,84,83),
+    ("A. Kudus","Ghana","CAM",82,85,78,78,84,48,74),
+    ("J. Ayew","Ghana","ST",80,79,77,75,77,47,73),
+    ("D. Amartey","Ghana","CB",77,69,45,63,61,78,77),
+    ("L. Bati","Ghana","GK",73,0,0,0,0,0,0),
+    # Senegal already done; remaining teams
+    ("South Africa","South Africa","—",0,0,0,0,0,0,0),  # placeholder removed below
+    # South Africa
+    ("P. Tau","South Africa","LW",78,83,71,73,79,37,65),
+    ("R. Williams","South Africa","GK",75,0,0,0,0,0,0),
+    ("T. Lorch","South Africa","RW",75,83,67,65,75,33,63),
+    ("B. Zwane","South Africa","CM",74,77,63,69,73,55,65),
+    # Bosnia
+    ("E. Džeko","Bosnia","ST",83,69,83,73,77,41,79),
+    ("M. Pjanić","Bosnia","CM",82,65,73,88,81,59,69),
+    ("S. Kolasinac","Bosnia","LB",80,73,57,69,67,77,83),
+    ("I. Šehić","Bosnia","GK",77,0,0,0,0,0,0),
+    # Iran
+    ("M. Taremi","Iran","ST",83,77,85,73,79,45,79),
+    ("S. Azmoun","Iran","ST",81,77,81,71,77,43,79),
+    ("A. Beiranvand","Iran","GK",79,0,0,0,0,0,0),
+    # Paraguay
+    ("M. Almiron","Paraguay","CAM",81,83,73,77,81,53,71),
+    ("J. Enciso","Paraguay","RW",79,85,73,73,79,35,65),
+    ("R. Sanabria","Paraguay","ST",78,73,77,65,73,39,73),
+    ("A. Silva","Paraguay","GK",75,0,0,0,0,0,0),
+    # Cape Verde
+    ("G. Benchimol","Cape Verde","ST",73,75,71,61,69,37,71),
+    ("J. Landim","Cape Verde","RW",71,77,65,63,69,33,63),
+    ("V. Varela","Cape Verde","GK",69,0,0,0,0,0,0),
+    # Uzbekistan
+    ("E. Shomurodov","Uzbekistan","ST",77,77,75,63,71,39,73),
+    ("O. Zubidov","Uzbekistan","CM",69,65,59,67,65,61,63),
+    ("U. Nishonov","Uzbekistan","GK",69,0,0,0,0,0,0),
+]
+# Remove the placeholder row
+PLAYER_CARDS_FALLBACK = [r for r in PLAYER_CARDS_FALLBACK if r[0] != "South Africa"]
 
-    # ── France ──────────────────────────────────────────────────
-    ("K. Mbappé",         "France",      "ST",  92, 97, 91, 81, 93, 37, 77),
-    ("M. Maignan",        "France",      "GK",  88,  0,  0,  0,  0,  0,  0),
-    ("A. Griezmann",      "France",      "CAM", 87, 76, 85, 87, 86, 55, 74),
-    ("J. Koundé",         "France",      "RB",  86, 79, 53, 76, 80, 84, 75),
-    ("A. Tchouaméni",     "France",      "CDM", 85, 71, 64, 82, 77, 85, 84),
-    ("A. Upamecano",      "France",      "CB",  85, 77, 48, 69, 70, 86, 84),
-    ("T. Hernández",      "France",      "LB",  85, 85, 63, 76, 79, 77, 81),
-    ("A. Camavinga",      "France",      "CM",  85, 81, 69, 83, 85, 76, 77),
-    ("K. Coman",          "France",      "RW",  85, 93, 79, 79, 87, 39, 73),
-    ("M. Thuram",         "France",      "ST",  84, 83, 82, 73, 81, 43, 85),
-    ("O. Dembélé",        "France",      "RW",  87, 93, 82, 80, 90, 36, 70),
-
-    # ── Spain ────────────────────────────────────────────────────
-    ("G. Rodri",          "Spain",       "CDM", 91, 66, 72, 89, 84, 89, 79),
-    ("P. Pedri",          "Spain",       "CM",  89, 75, 76, 89, 92, 66, 69),
-    ("L. Yamal",          "Spain",       "RW",  87, 92, 81, 81, 91, 30, 62),
-    ("D. Olmo",           "Spain",       "CAM", 86, 79, 81, 85, 87, 62, 73),
-    ("D. Carvajal",       "Spain",       "RB",  86, 76, 65, 83, 79, 83, 77),
-    ("A. Laporte",        "Spain",       "CB",  85, 69, 51, 79, 73, 87, 81),
-    ("M. Cucurella",      "Spain",       "LB",  83, 76, 56, 76, 77, 80, 78),
-    ("U. Simón",          "Spain",       "GK",  85,  0,  0,  0,  0,  0,  0),
-    ("A. Morata",         "Spain",       "ST",  83, 77, 81, 75, 79, 46, 79),
-    ("R. Le Normand",     "Spain",       "CB",  83, 69, 45, 71, 66, 84, 82),
-
-    # ── England ──────────────────────────────────────────────────
-    ("H. Kane",           "England",     "ST",  91, 71, 94, 84, 84, 48, 83),
-    ("P. Foden",          "England",     "CAM", 89, 83, 84, 87, 91, 45, 70),
-    ("B. Saka",           "England",     "RW",  88, 86, 83, 85, 88, 56, 73),
-    ("J. Bellingham",     "England",     "CM",  88, 80, 85, 84, 87, 74, 85),
-    ("T. Alexander-Arnold","England",    "RB",  88, 76, 73, 91, 81, 68, 71),
-    ("D. Rice",           "England",     "CDM", 87, 73, 68, 84, 80, 86, 84),
-    ("J. Pickford",       "England",     "GK",  85,  0,  0,  0,  0,  0,  0),
-    ("J. Trippier",       "England",     "RB",  83, 73, 69, 84, 75, 75, 74),
-    ("M. Guehi",          "England",     "CB",  83, 69, 45, 69, 67, 84, 81),
-    ("C. Palmer",         "England",     "CAM", 85, 74, 84, 84, 88, 52, 70),
-    ("O. Watkins",        "England",     "ST",  84, 83, 82, 72, 80, 46, 79),
-
-    # ── Brazil ───────────────────────────────────────────────────
-    ("Vinicius Jr.",      "Brazil",      "LW",  93, 96, 85, 78, 95, 33, 74),
-    ("Alisson",           "Brazil",      "GK",  91,  0,  0,  0,  0,  0,  0),
-    ("E. Militão",        "Brazil",      "CB",  87, 77, 49, 69, 73, 88, 81),
-    ("L. Paquetá",        "Brazil",      "CM",  86, 77, 79, 84, 87, 57, 75),
-    ("Rodrygo",           "Brazil",      "RW",  86, 88, 82, 79, 88, 36, 69),
-    ("Raphinha",          "Brazil",      "RW",  86, 85, 83, 81, 86, 41, 72),
-    ("G. Martinelli",     "Brazil",      "LW",  85, 91, 81, 74, 85, 39, 78),
-    ("Casemiro",          "Brazil",      "CDM", 86, 64, 71, 78, 75, 88, 87),
-    ("D. Danilo",         "Brazil",      "RB",  82, 77, 61, 78, 74, 78, 78),
-    ("M. Renan",          "Brazil",      "CB",  81, 71, 43, 66, 66, 82, 80),
-    ("A. Savinho",        "Brazil",      "RW",  82, 90, 76, 75, 84, 33, 68),
-
-    # ── Germany ──────────────────────────────────────────────────
-    ("F. Wirtz",          "Germany",     "CAM", 89, 80, 82, 87, 91, 49, 71),
-    ("J. Musiala",        "Germany",     "CAM", 89, 86, 83, 84, 92, 53, 73),
-    ("J. Kimmich",        "Germany",     "CDM", 89, 69, 73, 92, 83, 83, 77),
-    ("M. Ter Stegen",     "Germany",     "GK",  90,  0,  0,  0,  0,  0,  0),
-    ("A. Rüdiger",        "Germany",     "CB",  87, 79, 53, 66, 67, 88, 89),
-    ("L. Goretzka",       "Germany",     "CM",  85, 76, 79, 83, 83, 80, 86),
-    ("K. Havertz",        "Germany",     "ST",  85, 78, 85, 81, 83, 58, 80),
-    ("T. Müller",         "Germany",     "CAM", 83, 68, 80, 86, 82, 57, 75),
-    ("D. Raum",           "Germany",     "LB",  83, 81, 61, 79, 75, 75, 74),
-    ("B. Pavard",         "Germany",     "CB",  83, 75, 56, 74, 70, 83, 79),
-    ("L. Nmecha",         "Germany",     "ST",  82, 83, 81, 70, 79, 40, 82),
-
-    # ── Portugal ─────────────────────────────────────────────────
-    ("C. Ronaldo",        "Portugal",    "ST",  87, 80, 92, 77, 84, 33, 76),
-    ("R. Dias",           "Portugal",    "CB",  89, 73, 53, 71, 71, 90, 83),
-    ("B. Fernandes",      "Portugal",    "CAM", 87, 75, 83, 89, 85, 61, 78),
-    ("R. Leão",           "Portugal",    "LW",  86, 93, 82, 77, 87, 35, 75),
-    ("N. Mendes",         "Portugal",    "LB",  86, 88, 63, 77, 81, 79, 77),
-    ("J. Cancelo",        "Portugal",    "RB",  86, 81, 69, 83, 83, 73, 73),
-    ("J. Félix",          "Portugal",    "CAM", 85, 83, 82, 82, 88, 41, 71),
-    ("D. Costa",          "Portugal",    "GK",  85,  0,  0,  0,  0,  0,  0),
-    ("G. Ramos",          "Portugal",    "ST",  84, 75, 84, 70, 78, 42, 78),
-    ("P. Neves",          "Portugal",    "CM",  84, 73, 70, 84, 82, 74, 76),
-    ("D. Dalot",          "Portugal",    "RB",  83, 81, 61, 75, 77, 75, 73),
-
-    # ── Netherlands ──────────────────────────────────────────────
-    ("V. van Dijk",       "Netherlands", "CB",  90, 76, 61, 73, 73, 92, 89),
-    ("F. de Jong",        "Netherlands", "CM",  88, 75, 73, 89, 88, 75, 77),
-    ("C. Gakpo",          "Netherlands", "LW",  85, 86, 83, 77, 84, 43, 79),
-    ("X. Simons",         "Netherlands", "CAM", 85, 84, 80, 84, 86, 52, 70),
-    ("M. Depay",          "Netherlands", "ST",  84, 83, 85, 78, 86, 38, 76),
-    ("D. Dumfries",       "Netherlands", "RB",  84, 85, 66, 73, 74, 77, 85),
-    ("B. Verbruggen",     "Netherlands", "GK",  84,  0,  0,  0,  0,  0,  0),
-    ("S. de Vrij",        "Netherlands", "CB",  84, 69, 51, 73, 69, 86, 81),
-    ("T. Reijnders",      "Netherlands", "CM",  84, 76, 73, 81, 81, 72, 77),
-    ("N. Timber",         "Netherlands", "CB",  83, 75, 47, 71, 71, 83, 79),
-    ("R. Malen",          "Netherlands", "LW",  82, 89, 78, 72, 83, 35, 70),
-
-    # ── Morocco ──────────────────────────────────────────────────
-    ("A. Hakimi",         "Morocco",     "RB",  87, 91, 73, 77, 83, 71, 77),
-    ("Y. Bounou",         "Morocco",     "GK",  87,  0,  0,  0,  0,  0,  0),
-    ("Y. En-Nesyri",      "Morocco",     "ST",  83, 84, 82, 65, 76, 43, 78),
-    ("H. Ziyech",         "Morocco",     "RW",  83, 79, 81, 84, 85, 41, 66),
-    ("S. Amrabat",        "Morocco",     "CDM", 83, 74, 59, 79, 79, 83, 81),
-    ("N. Aguerd",         "Morocco",     "CB",  82, 69, 45, 67, 63, 83, 79),
-    ("S. Ezzalzouli",     "Morocco",     "LW",  81, 86, 74, 76, 82, 36, 68),
-    ("I. Ounahi",         "Morocco",     "CM",  80, 73, 66, 79, 80, 70, 72),
-    ("R. Saïss",          "Morocco",     "CB",  80, 63, 49, 69, 65, 83, 79),
-    ("B. Diaz",           "Morocco",     "ST",  79, 81, 78, 69, 76, 39, 73),
-
-    # ── Belgium ──────────────────────────────────────────────────
-    ("K. De Bruyne",      "Belgium",     "CAM", 91, 75, 86, 94, 88, 65, 79),
-    ("T. Courtois",       "Belgium",     "GK",  91,  0,  0,  0,  0,  0,  0),
-    ("R. Lukaku",         "Belgium",     "ST",  86, 83, 87, 68, 81, 41, 93),
-    ("A. Doku",           "Belgium",     "LW",  85, 96, 76, 74, 89, 32, 68),
-    ("L. Trossard",       "Belgium",     "LW",  84, 83, 81, 79, 83, 47, 73),
-    ("J. Vertonghen",     "Belgium",     "CB",  82, 65, 47, 73, 69, 85, 79),
-    ("Y. Carrasco",       "Belgium",     "LW",  82, 85, 77, 77, 84, 41, 73),
-    ("A. Onana",          "Belgium",     "CDM", 82, 70, 62, 80, 76, 80, 78),
-    ("T. Alderweireld",   "Belgium",     "CB",  81, 63, 51, 77, 65, 85, 78),
-
-    # ── Colombia ─────────────────────────────────────────────────
-    ("L. Díaz",           "Colombia",    "LW",  86, 91, 81, 79, 89, 41, 74),
-    ("D. Ospina",         "Colombia",    "GK",  84,  0,  0,  0,  0,  0,  0),
-    ("J. Cuadrado",       "Colombia",    "RW",  83, 85, 75, 81, 83, 55, 71),
-    ("Y. Mina",           "Colombia",    "CB",  83, 65, 53, 61, 59, 84, 85),
-    ("R. Falcao",         "Colombia",    "ST",  81, 69, 84, 70, 78, 38, 74),
-    ("J. Lerma",          "Colombia",    "CDM", 81, 71, 61, 75, 71, 81, 83),
-    ("J. Muriel",         "Colombia",    "ST",  81, 85, 79, 73, 79, 37, 73),
-    ("M. Caicedo",        "Colombia",    "CDM", 85, 75, 63, 79, 79, 85, 83),
-
-    # ── Norway ───────────────────────────────────────────────────
-    ("E. Haaland",        "Norway",      "ST",  95, 89, 96, 69, 82, 46, 89),
-    ("M. Ødegaard",       "Norway",      "CAM", 88, 79, 83, 91, 91, 59, 69),
-    ("A. Sørloth",        "Norway",      "ST",  83, 79, 83, 67, 73, 47, 87),
-    ("J. Strand Larsen",  "Norway",      "ST",  80, 79, 79, 63, 73, 39, 83),
-    ("S. Berge",          "Norway",      "CM",  80, 69, 67, 79, 75, 77, 75),
-    ("R. Nyland",         "Norway",      "GK",  79,  0,  0,  0,  0,  0,  0),
-    ("L. Ostigard",       "Norway",      "CB",  79, 67, 43, 59, 57, 80, 81),
-
-    # ── Switzerland ──────────────────────────────────────────────
-    ("Y. Sommer",         "Switzerland", "GK",  86,  0,  0,  0,  0,  0,  0),
-    ("G. Xhaka",          "Switzerland", "CDM", 85, 65, 73, 86, 78, 81, 79),
-    ("M. Akanji",         "Switzerland", "CB",  85, 77, 49, 71, 71, 86, 81),
-    ("X. Shaqiri",        "Switzerland", "RW",  83, 81, 81, 83, 84, 43, 73),
-    ("F. Schär",          "Switzerland", "CB",  82, 69, 57, 73, 67, 83, 79),
-    ("B. Embolo",         "Switzerland", "ST",  81, 81, 79, 73, 77, 45, 83),
-    ("R. Vargas",         "Switzerland", "LW",  80, 83, 75, 77, 79, 37, 67),
-    ("S. Widmer",         "Switzerland", "RB",  79, 77, 59, 73, 71, 73, 75),
-
-    # ── USA ──────────────────────────────────────────────────────
-    ("C. Pulisic",        "USA",         "LW",  85, 89, 81, 82, 87, 45, 75),
-    ("T. Adams",          "USA",         "CDM", 82, 73, 59, 77, 73, 83, 83),
-    ("M. Turner",         "USA",         "GK",  80,  0,  0,  0,  0,  0,  0),
-    ("W. McKennie",       "USA",         "CM",  81, 77, 71, 76, 76, 73, 83),
-    ("R. Reyna",          "USA",         "CAM", 81, 81, 74, 80, 84, 44, 66),
-    ("F. Weah",           "USA",         "RW",  79, 87, 73, 71, 78, 37, 73),
-    ("J. Sargent",        "USA",         "ST",  80, 77, 78, 67, 74, 45, 77),
-    ("A. Dest",           "USA",         "RB",  80, 85, 61, 73, 77, 65, 69),
-    ("T. Ream",           "USA",         "CB",  78, 61, 41, 67, 59, 79, 77),
-
-    # ── Mexico ───────────────────────────────────────────────────
-    ("G. Ochoa",          "Mexico",      "GK",  84,  0,  0,  0,  0,  0,  0),
-    ("H. Lozano",         "Mexico",      "RW",  83, 91, 79, 77, 83, 39, 71),
-    ("R. Jiménez",        "Mexico",      "ST",  83, 74, 83, 71, 77, 43, 81),
-    ("A. Vega",           "Mexico",      "LW",  80, 87, 75, 73, 80, 36, 69),
-    ("H. Moreno",         "Mexico",      "CB",  80, 67, 45, 67, 65, 81, 79),
-    ("E. Álvarez",        "Mexico",      "CM",  79, 71, 67, 77, 75, 71, 73),
-    ("L. Romo",           "Mexico",      "CM",  78, 69, 65, 77, 75, 69, 71),
-
-    # ── Japan ────────────────────────────────────────────────────
-    ("W. Endo",           "Japan",       "CDM", 80, 67, 61, 77, 73, 80, 77),
-    ("D. Kamada",         "Japan",       "CAM", 80, 77, 77, 79, 80, 57, 71),
-    ("T. Minamino",       "Japan",       "CAM", 80, 81, 78, 79, 81, 55, 69),
-    ("Ritsu Doan",        "Japan",       "LW",  80, 84, 77, 77, 81, 43, 68),
-    ("K. Gonda",          "Japan",       "GK",  78,  0,  0,  0,  0,  0,  0),
-    ("H. Ito",            "Japan",       "RB",  79, 81, 59, 71, 71, 71, 71),
-    ("S. Itakura",        "Japan",       "CB",  79, 69, 45, 67, 65, 80, 77),
-    ("A. Ueda",           "Japan",       "ST",  78, 78, 77, 63, 71, 39, 75),
-
-    # ── Austria ──────────────────────────────────────────────────
-    ("D. Alaba",          "Austria",     "CB",  86, 77, 71, 85, 83, 85, 75),
-    ("M. Sabitzer",       "Austria",     "CM",  83, 77, 77, 81, 81, 67, 77),
-    ("M. Arnautovic",     "Austria",     "ST",  82, 73, 81, 73, 75, 45, 81),
-    ("C. Baumgartner",    "Austria",     "CM",  80, 77, 73, 77, 79, 59, 71),
-    ("P. Pentz",          "Austria",     "GK",  77,  0,  0,  0,  0,  0,  0),
-    ("F. Grillitsch",     "Austria",     "CDM", 78, 65, 61, 77, 71, 75, 73),
-
-    # ── Sweden ───────────────────────────────────────────────────
-    ("V. Gyökeres",       "Sweden",      "ST",  86, 83, 87, 69, 82, 43, 86),
-    ("A. Isak",           "Sweden",      "ST",  85, 89, 83, 73, 85, 39, 77),
-    ("D. Kulusevski",     "Sweden",      "RW",  84, 85, 79, 81, 84, 55, 76),
-    ("E. Forsberg",       "Sweden",      "CAM", 82, 79, 77, 83, 83, 51, 69),
-    ("R. Olsen",          "Sweden",      "GK",  80,  0,  0,  0,  0,  0,  0),
-    ("M. Lustig",         "Sweden",      "RB",  77, 75, 59, 71, 67, 73, 71),
-
-    # ── Canada ───────────────────────────────────────────────────
-    ("A. Davies",         "Canada",      "LB",  86, 96, 69, 79, 84, 73, 75),
-    ("J. David",          "Canada",      "ST",  84, 83, 86, 73, 82, 39, 73),
-    ("T. Buchanan",       "Canada",      "LW",  79, 87, 71, 71, 77, 37, 71),
-    ("M. Borjan",         "Canada",      "GK",  78,  0,  0,  0,  0,  0,  0),
-    ("S. Larin",          "Canada",      "ST",  78, 77, 77, 65, 71, 39, 75),
-    ("K. Johnston",       "Canada",      "CM",  77, 73, 65, 73, 73, 65, 71),
-
-    # ── Senegal ──────────────────────────────────────────────────
-    ("S. Mané",           "Senegal",     "LW",  87, 90, 84, 79, 88, 44, 78),
-    ("É. Mendy",          "Senegal",     "GK",  86,  0,  0,  0,  0,  0,  0),
-    ("K. Koulibaly",      "Senegal",     "CB",  86, 73, 53, 65, 63, 89, 87),
-    ("I. Sarr",           "Senegal",     "RW",  83, 91, 77, 73, 81, 37, 73),
-    ("P. Gueye",          "Senegal",     "CDM", 83, 75, 63, 77, 75, 83, 81),
-    ("N. Jackson",        "Senegal",     "ST",  81, 84, 79, 71, 77, 39, 77),
-    ("I. Diallo",         "Senegal",     "CB",  80, 69, 45, 61, 59, 81, 79),
-
-    # ── Croatia ──────────────────────────────────────────────────
-    ("L. Modrić",         "Croatia",     "CM",  87, 73, 77, 92, 91, 63, 68),
-    ("J. Gvardiol",       "Croatia",     "CB",  88, 83, 57, 73, 77, 88, 83),
-    ("D. Livaković",      "Croatia",     "GK",  85,  0,  0,  0,  0,  0,  0),
-    ("A. Kramarić",       "Croatia",     "ST",  83, 77, 83, 73, 81, 43, 75),
-    ("M. Brozović",       "Croatia",     "CDM", 84, 69, 69, 87, 81, 79, 75),
-    ("I. Perišić",        "Croatia",     "LW",  83, 83, 78, 78, 80, 64, 80),
-
-    # ── Ivory Coast ──────────────────────────────────────────────
-    ("S. Haller",         "Ivory Coast", "ST",  82, 75, 83, 61, 73, 43, 87),
-    ("W. Zaha",           "Ivory Coast", "RW",  81, 87, 75, 73, 83, 39, 73),
-    ("N. Pépé",           "Ivory Coast", "RW",  80, 87, 77, 75, 84, 37, 71),
-    ("F. Konaté",         "Ivory Coast", "GK",  78,  0,  0,  0,  0,  0,  0),
-    ("S. Aurier",         "Ivory Coast", "RB",  80, 83, 63, 71, 71, 73, 77),
-    ("E. Gradel",         "Ivory Coast", "LW",  78, 83, 73, 71, 77, 37, 69),
-
-    # ── Australia ────────────────────────────────────────────────
-    ("M. Ryan",           "Australia",   "GK",  80,  0,  0,  0,  0,  0,  0),
-    ("M. Leckie",         "Australia",   "RW",  78, 85, 71, 73, 77, 43, 71),
-    ("A. Hrustic",        "Australia",   "CM",  76, 71, 69, 75, 73, 63, 67),
-    ("H. Souttar",        "Australia",   "CB",  78, 63, 45, 65, 61, 79, 81),
-    ("M. Goodwin",        "Australia",   "LW",  75, 81, 67, 65, 71, 35, 63),
-
-    # ── Ecuador ──────────────────────────────────────────────────
-    ("M. Caicedo",        "Ecuador",     "CDM", 85, 75, 63, 79, 79, 85, 83),
-    ("P. Hincapié",       "Ecuador",     "CB",  81, 75, 47, 67, 67, 81, 77),
-    ("E. Valencia",       "Ecuador",     "ST",  80, 77, 78, 63, 69, 43, 83),
-    ("H. Galíndez",       "Ecuador",     "GK",  77,  0,  0,  0,  0,  0,  0),
-    ("A. Preciado",       "Ecuador",     "RB",  76, 79, 57, 67, 67, 67, 71),
-
-    # ── Egypt ────────────────────────────────────────────────────
-    ("M. Salah",          "Egypt",       "RW",  91, 88, 89, 83, 90, 45, 78),
-    ("O. Marmoush",       "Egypt",       "ST",  86, 85, 84, 77, 82, 46, 77),
-    ("M. El-Shenawy",     "Egypt",       "GK",  79,  0,  0,  0,  0,  0,  0),
-    ("A. Hegazi",         "Egypt",       "CB",  78, 63, 45, 63, 59, 79, 81),
-    ("T. Mohamed",        "Egypt",       "CM",  75, 69, 61, 71, 69, 65, 69),
-
-    # ── South Africa ─────────────────────────────────────────────
-    ("P. Tau",            "South Africa","LW",  78, 83, 71, 73, 79, 37, 65),
-    ("R. Williams",       "South Africa","GK",  75,  0,  0,  0,  0,  0,  0),
-    ("T. Lorch",          "South Africa","RW",  75, 83, 67, 65, 75, 33, 63),
-    ("B. Zwane",          "South Africa","CM",  74, 77, 63, 69, 73, 55, 65),
-    ("S. Mashele",        "South Africa","CB",  73, 63, 39, 57, 55, 75, 75),
-
-    # ── Ghana ────────────────────────────────────────────────────
-    ("T. Partey",         "Ghana",       "CDM", 84, 73, 66, 81, 77, 84, 83),
-    ("A. Kudus",          "Ghana",       "CAM", 82, 85, 78, 78, 84, 48, 74),
-    ("J. Ayew",           "Ghana",       "ST",  80, 79, 77, 75, 77, 47, 73),
-    ("L. Bati",           "Ghana",       "GK",  73,  0,  0,  0,  0,  0,  0),
-    ("D. Amartey",        "Ghana",       "CB",  77, 69, 45, 63, 61, 78, 77),
-
-    # ── Bosnia ───────────────────────────────────────────────────
-    ("E. Džeko",          "Bosnia",      "ST",  83, 69, 83, 73, 77, 41, 79),
-    ("M. Pjanić",         "Bosnia",      "CM",  82, 65, 73, 88, 81, 59, 69),
-    ("I. Šehić",          "Bosnia",      "GK",  77,  0,  0,  0,  0,  0,  0),
-    ("S. Kolasinac",      "Bosnia",      "LB",  80, 73, 57, 69, 67, 77, 83),
-    ("E. Šunjić",         "Bosnia",      "CDM", 75, 61, 53, 71, 63, 75, 73),
-
-    # ── Iran ─────────────────────────────────────────────────────
-    ("M. Taremi",         "Iran",        "ST",  83, 77, 85, 73, 79, 45, 79),
-    ("S. Azmoun",         "Iran",        "ST",  81, 77, 81, 71, 77, 43, 79),
-    ("A. Beiranvand",     "Iran",        "GK",  79,  0,  0,  0,  0,  0,  0),
-    ("E. Hajsafi",        "Iran",        "LB",  75, 73, 55, 69, 65, 69, 69),
-
-    # ── Paraguay ─────────────────────────────────────────────────
-    ("M. Almiron",        "Paraguay",    "CAM", 81, 83, 73, 77, 81, 53, 71),
-    ("R. Sanabria",       "Paraguay",    "ST",  78, 73, 77, 65, 73, 39, 73),
-    ("J. Enciso",         "Paraguay",    "RW",  79, 85, 73, 73, 79, 35, 65),
-    ("A. Silva",          "Paraguay",    "GK",  75,  0,  0,  0,  0,  0,  0),
-    ("F. Balbuena",       "Paraguay",    "CB",  77, 65, 45, 61, 59, 78, 79),
-
-    # ── Cape Verde ───────────────────────────────────────────────
-    ("G. Benchimol",      "Cape Verde",  "ST",  73, 75, 71, 61, 69, 37, 71),
-    ("V. Varela",         "Cape Verde",  "GK",  69,  0,  0,  0,  0,  0,  0),
-    ("J. Landim",         "Cape Verde",  "RW",  71, 77, 65, 63, 69, 33, 63),
-
-    # ── Uzbekistan ───────────────────────────────────────────────
-    ("E. Shomurodov",     "Uzbekistan",  "ST",  77, 77, 75, 63, 71, 39, 73),
-    ("U. Nishonov",       "Uzbekistan",  "GK",  69,  0,  0,  0,  0,  0,  0),
-    ("O. Zubidov",        "Uzbekistan",  "CM",  69, 65, 59, 67, 65, 61, 63),
-    ("J. Mirzayev",       "Uzbekistan",  "CB",  69, 61, 37, 55, 51, 71, 71),
+WC_HISTORY = [
+    (1930,"Uruguay","🇺🇾","Uruguay","🇺🇾","Argentina","🇦🇷","4–2","G. Stábile (ARG)",8,434000),
+    (1934,"Italy","🇮🇹","Italy","🇮🇹","Czechoslovakia","🇨🇿","2–1","O. Schiavio (ITA)",4,363000),
+    (1938,"France","🇫🇷","Italy","🇮🇹","Hungary","🇭🇺","4–2","L. Zsengellér (HUN)",7,375000),
+    (1950,"Brazil","🇧🇷","Uruguay","🇺🇾","Brazil","🇧🇷","2–1","A. Ademir (BRA)",9,1045000),
+    (1954,"Switzerland","🇨🇭","West Germany","🇩🇪","Hungary","🇭🇺","3–2","S. Morlock (GER)",6,768000),
+    (1958,"Sweden","🇸🇪","Brazil","🇧🇷","Sweden","🇸🇪","5–2","Just Fontaine (FRA)",13,868000),
+    (1962,"Chile","🇨🇱","Brazil","🇧🇷","Czechoslovakia","🇨🇿","3–1","V. Masek (TCH)",4,893000),
+    (1966,"England","🏴󠁧󠁢󠁥󠁮󠁧󠁿","England","🏴󠁧󠁢󠁥󠁮󠁧󠁿","West Germany","🇩🇪","4–2","E. Hurst (ENG)",4,1614677),
+    (1970,"Mexico","🇲🇽","Brazil","🇧🇷","Italy","🇮🇹","4–1","G. Müller (GER)",10,1604065),
+    (1974,"West Germany","🇩🇪","West Germany","🇩🇪","Netherlands","🇳🇱","2–1","G. Müller (GER)",4,1865762),
+    (1978,"Argentina","🇦🇷","Argentina","🇦🇷","Netherlands","🇳🇱","3–1","M. Kempes (ARG)",6,1545791),
+    (1982,"Spain","🇪🇸","Italy","🇮🇹","West Germany","🇩🇪","3–1","P. Rossi (ITA)",6,2109723),
+    (1986,"Mexico","🇲🇽","Argentina","🇦🇷","West Germany","🇩🇪","3–2","G. Lineker (ENG)",6,2394031),
+    (1990,"Italy","🇮🇹","West Germany","🇩🇪","Argentina","🇦🇷","1–0","S. Schillaci (ITA)",6,2517348),
+    (1994,"USA","🇺🇸","Brazil","🇧🇷","Italy","🇮🇹","0–0 (3–2p)","H. Stoichkov (BUL)",6,3587538),
+    (1998,"France","🇫🇷","France","🇫🇷","Brazil","🇧🇷","3–0","D. Batistuta (ARG)",6,2785100),
+    (2002,"Korea/Japan","🇰🇷🇯🇵","Brazil","🇧🇷","Germany","🇩🇪","2–0","R. Ronaldo (BRA)",8,2705197),
+    (2006,"Germany","🇩🇪","Italy","🇮🇹","France","🇫🇷","1–1 (5–3p)","M. Klose (GER)",5,3359439),
+    (2010,"South Africa","🇿🇦","Spain","🇪🇸","Netherlands","🇳🇱","1–0","T. Müller (GER)",5,3178856),
+    (2014,"Brazil","🇧🇷","Germany","🇩🇪","Argentina","🇦🇷","1–0","J. Rodríguez (COL)",6,3429873),
+    (2018,"Russia","🇷🇺","France","🇫🇷","Croatia","🇭🇷","4–2","H. Kane (ENG)",6,3031768),
+    (2022,"Qatar","🇶🇦","Argentina","🇦🇷","France","🇫🇷","3–3 (4–2p)","K. Mbappé (FRA)",8,3404252),
 ]
 
-# ══════════════════════════════════════════════════════════════════════════════
-# API HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
-def api_get(url: str, api_key: str) -> dict | None:
+# ══════════════════════════════════════════════════════════════════════
+# API
+# ══════════════════════════════════════════════════════════════════════
+def api_get(url: str, key: str) -> dict | None:
     try:
-        r = requests.get(url, headers={"x-apisports-key": api_key}, timeout=12)
+        r = requests.get(url, headers={"x-apisports-key": key}, timeout=12)
         if r.status_code == 200:
             return r.json()
     except Exception:
         pass
     return None
 
-def fetch_live_data(api_key: str) -> dict | None:
-    return api_get("https://v3.football.api-sports.io/status", api_key)
+def fetch_live_data(key: str) -> dict | None:
+    return api_get("https://v3.football.api-sports.io/status", key)
 
-def parse_account_info(status: dict) -> tuple[str, str, str]:
-    """
-    Extract plan name and request counts from /status response.
-    API-Football returns: {"response": {"account": {...}, "subscription": {...}, "requests": {...}}}
-    """
+def parse_account_info(status: dict) -> tuple:
     resp = (status or {}).get("response") or {}
-    # Handle both dict (v3) and list (some plan variants)
     if isinstance(resp, list):
         resp = resp[0] if resp else {}
-    plan    = (resp.get("subscription") or {}).get("plan", "unknown")
-    reqs    = (resp.get("requests") or {})
-    used    = str(reqs.get("current", "?"))
-    limit   = str(reqs.get("limit_day", "?"))
-    return plan, used, limit
+    plan  = (resp.get("subscription") or {}).get("plan", "unknown")
+    reqs  = (resp.get("requests") or {})
+    return plan, str(reqs.get("current","?")), str(reqs.get("limit_day","?"))
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_recent_international_results(api_key: str) -> tuple[list[dict], list[str]]:
-    """
-    Returns (results, debug_lines) so caller can show what was fetched.
-    Tries multiple league/season combos and reports counts for each.
-    """
-    # League ID → season pairs. WC 2026 is league 1 season 2026 on API-Football.
-    # Also try friendlies (league 834 = international friendlies on some plans).
+def fetch_recent_results(key: str) -> tuple:
     league_seasons = [
-        (1,   2026, "WC 2026"),
-        (1,   2022, "WC 2022"),
-        (4,   2024, "UEFA Euro 2024"),
-        (9,   2024, "Copa América 2024"),
-        (6,   2023, "AFCON 2023"),
-        (10,  2023, "AFC Asian Cup 2023"),
-        (834, 2025, "Intl Friendlies 2025"),
-        (834, 2024, "Intl Friendlies 2024"),
+        (1,2026,"WC 2026"),(1,2022,"WC 2022"),
+        (4,2024,"Euro 2024"),(9,2024,"Copa Am 2024"),
+        (6,2023,"AFCON 2023"),(10,2023,"AFC Asian 2023"),
+        (834,2025,"Intl Friendlies 25"),(834,2024,"Intl Friendlies 24"),
     ]
-    cutoff  = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
-    results = []
-    debug   = []
-
+    cutoff  = (datetime.now()-timedelta(days=730)).strftime("%Y-%m-%d")
+    results, debug = [], []
     for lid, season, label in league_seasons:
-        url  = f"https://v3.football.api-sports.io/fixtures?league={lid}&season={season}&status=FT"
-        data = api_get(url, api_key)
-        raw_count = len((data or {}).get("response") or []) if data else 0
+        data      = api_get(f"https://v3.football.api-sports.io/fixtures?league={lid}&season={season}&status=FT", key)
+        raw       = (data or {}).get("response") or []
         matched   = 0
-        if data:
-            for fix in (data.get("response") or []):
-                date_str  = (fix.get("fixture") or {}).get("date", "")[:10]
-                if date_str < cutoff:
-                    continue
-                home_name = (fix.get("teams") or {}).get("home", {}).get("name", "")
-                away_name = (fix.get("teams") or {}).get("away", {}).get("name", "")
-                goals_h   = (fix.get("goals") or {}).get("home")
-                goals_a   = (fix.get("goals") or {}).get("away")
-                home = API_NAME_MAP.get(home_name)
-                away = API_NAME_MAP.get(away_name)
-                if home and away and goals_h is not None and goals_a is not None:
-                    results.append({"home": home, "away": away,
-                                     "goals_home": int(goals_h),
-                                     "goals_away": int(goals_a),
-                                     "date": date_str})
-                    matched += 1
-        debug.append(f"{label} (league={lid} season={season}): {raw_count} fixtures returned, {matched} matched our teams")
-
-    debug.append(f"Total usable results: {len(results)}")
+        for fix in raw:
+            ds  = (fix.get("fixture") or {}).get("date","")[:10]
+            if ds < cutoff: continue
+            hn  = (fix.get("teams") or {}).get("home",{}).get("name","")
+            an  = (fix.get("teams") or {}).get("away",{}).get("name","")
+            gh  = (fix.get("goals") or {}).get("home")
+            ga  = (fix.get("goals") or {}).get("away")
+            h   = API_NAME_MAP.get(hn); a = API_NAME_MAP.get(an)
+            if h and a and gh is not None and ga is not None:
+                results.append({"home":h,"away":a,"goals_home":int(gh),"goals_away":int(ga),"date":ds})
+                matched += 1
+        debug.append(f"{label}: {len(raw)} fixtures, {matched} matched")
+    debug.append(f"Total: {len(results)}")
     return results, debug
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def discover_wc2026_league_id(api_key: str) -> tuple[int, str]:
-    """
-    Find the correct league ID for WC 2026 on this API plan.
-    Returns (league_id, debug_log).
-    """
-    debug = []
-
-    # Strategy A: search by name + season
-    for search_name in ["FIFA World Cup", "World Cup"]:
-        url  = f"https://v3.football.api-sports.io/leagues?name={search_name.replace(' ', '+')}&season=2026"
-        data = api_get(url, api_key)
-        resp = (data or {}).get("response") or []
-        debug.append(f"Search '{search_name}' season=2026: {len(resp)} results")
-        for item in resp:
-            lg  = (item.get("league") or {})
-            lid = lg.get("id")
-            nm  = lg.get("name", "")
-            debug.append(f"  → id={lid} name={nm}")
-            if lid:
-                debug.append(f"✅ Using league_id={lid}")
-                return lid, "\n".join(debug)
-
-    # Strategy B: check league id=1 for seasons 2026 and 2025
-    for try_season in [2026, 2025]:
-        url2  = f"https://v3.football.api-sports.io/leagues?id=1&season={try_season}"
-        data2 = api_get(url2, api_key)
-        resp2 = (data2 or {}).get("response") or []
-        debug.append(f"Check league id=1 season={try_season}: {len(resp2)} results")
-        for item in resp2:
-            seas_list = [s.get("year") for s in (item.get("seasons") or [])]
-            debug.append(f"  Seasons available: {seas_list}")
-        if resp2:
-            debug.append("✅ league_id=1 confirmed available")
-            return 1, "\n".join(debug)
-
-    # Strategy C: all Cup leagues for 2026
-    url3  = "https://v3.football.api-sports.io/leagues?type=Cup&season=2026"
-    data3 = api_get(url3, api_key)
-    resp3 = (data3 or {}).get("response") or []
-    debug.append(f"All Cup leagues season=2026: {len(resp3)} results")
-    for item in resp3:
-        lg   = (item.get("league") or {})
-        name = lg.get("name", "").lower()
-        lid  = lg.get("id")
-        debug.append(f"  id={lid} name={lg.get('name','')}")
-        if "world" in name and lid:
-            debug.append(f"✅ World Cup candidate found: id={lid}")
-            return lid, "\n".join(debug)
-
-    # Strategy D: raw dump of ALL leagues available on this plan
-    url4  = "https://v3.football.api-sports.io/leagues?current=true"
-    data4 = api_get(url4, api_key)
-    resp4 = (data4 or {}).get("response") or []
-    debug.append(f"All current leagues on plan: {len(resp4)} results")
-    world_candidates = []
-    for item in resp4:
-        lg   = (item.get("league") or {})
-        name = lg.get("name", "").lower()
-        lid  = lg.get("id")
-        if "world" in name or "fifa" in name:
-            world_candidates.append(f"id={lid} name={lg.get('name','')}")
-    if world_candidates:
-        debug.append("World/FIFA leagues found: " + ", ".join(world_candidates))
-    else:
-        debug.append("No World/FIFA leagues in current active leagues on this plan")
-        debug.append("⚠️ Your API plan may not include the 2026 World Cup")
-        debug.append("   Check: api-football.com/documentation → /leagues endpoint")
-
-    debug.append("Falling back to league_id=1 (default)")
-    return 1, "\n".join(debug)
+def compute_ratings(results: list) -> dict:
     now = datetime.now()
-    scored:   dict[str, list] = {t: [] for t in BASE_TEAMS}
-    conceded: dict[str, list] = {t: [] for t in BASE_TEAMS}
+    sc: dict = {t:[] for t in BASE_TEAMS}
+    co: dict = {t:[] for t in BASE_TEAMS}
     for r in results:
-        days_ago = (now - datetime.strptime(r["date"], "%Y-%m-%d")).days
-        w = 1.0 if days_ago <= 180 else (0.7 if days_ago <= 365 else 0.4)
-        if r["home"] in scored:
-            scored[r["home"]].append((r["goals_home"], w))
-            conceded[r["home"]].append((r["goals_away"], w))
-        if r["away"] in scored:
-            scored[r["away"]].append((r["goals_away"], w))
-            conceded[r["away"]].append((r["goals_home"], w))
-    AVG = 1.35
-    new: dict = {}
-    for team, base in BASE_TEAMS.items():
-        sc = scored.get(team, [])
-        co = conceded.get(team, [])
-        if len(sc) >= 3:
-            tw  = sum(w for _, w in sc)
-            atk = sum(g * w for g, w in sc) / tw
-            dfg = sum(g * w for g, w in co) / tw
-            new[team] = {**base,
-                         "atk": round(0.6 * atk + 0.4 * base["atk"], 3),
-                         "def": round(0.6 * (dfg / AVG) + 0.4 * base["def"], 3)}
+        d = (now - datetime.strptime(r["date"],"%Y-%m-%d")).days
+        w = 1.0 if d<=180 else (0.7 if d<=365 else 0.4)
+        if r["home"] in sc:
+            sc[r["home"]].append((r["goals_home"],w))
+            co[r["home"]].append((r["goals_away"],w))
+        if r["away"] in sc:
+            sc[r["away"]].append((r["goals_away"],w))
+            co[r["away"]].append((r["goals_home"],w))
+    out = {}
+    for t, base in BASE_TEAMS.items():
+        s = sc.get(t,[])
+        if len(s) >= 3:
+            tw  = sum(w for _,w in s)
+            atk = sum(g*w for g,w in s)/tw
+            dfg = sum(g*w for g,w in co.get(t,[]))/tw
+            out[t] = {**base,"atk":round(0.6*atk+0.4*base["atk"],3),"def":round(0.6*(dfg/1.35)+0.4*base["def"],3)}
         else:
-            new[team] = base
-    return new
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def discover_wc2026_league_id(api_key: str) -> tuple[int, str]:
-    """
-    Search the API for the correct league ID for the 2026 World Cup.
-    Returns (league_id, debug_info).
-    """
-    debug = []
-    # Try searching by name
-    url  = "https://v3.football.api-sports.io/leagues?name=FIFA+World+Cup&season=2026"
-    data = api_get(url, api_key)
-    resp = (data or {}).get("response") or []
-    debug.append(f"League search (FIFA World Cup 2026): {len(resp)} results")
-    for item in resp:
-        lg   = (item.get("league") or {})
-        seas = (item.get("seasons") or [])
-        lid  = lg.get("id")
-        name = lg.get("name","")
-        debug.append(f"  Found: id={lid} name={name} seasons={[s.get('year') for s in seas]}")
-        if lid:
-            return lid, "\n".join(debug)
-
-    # Try league ID 1 with different season spellings
-    for try_season in [2026, 2025]:
-        url2  = f"https://v3.football.api-sports.io/leagues?id=1&season={try_season}"
-        data2 = api_get(url2, api_key)
-        resp2 = (data2 or {}).get("response") or []
-        debug.append(f"League id=1 season={try_season}: {len(resp2)} results")
-        if resp2:
-            return 1, "\n".join(debug)
-
-    # Broader search — list all active leagues with "world" in name
-    url3  = "https://v3.football.api-sports.io/leagues?type=Cup&season=2026"
-    data3 = api_get(url3, api_key)
-    resp3 = (data3 or {}).get("response") or []
-    debug.append(f"Cup leagues season=2026: {len(resp3)} results")
-    for item in resp3:
-        lg   = (item.get("league") or {})
-        name = lg.get("name", "").lower()
-        lid  = lg.get("id")
-        if "world" in name:
-            debug.append(f"  World Cup candidate: id={lid} name={lg.get('name')}")
-            return lid, "\n".join(debug)
-
-    debug.append("Could not auto-detect WC 2026 league ID")
-    return 1, "\n".join(debug)
-
-
-@st.cache_data(ttl=1800, show_spinner=False)
-def fetch_wc2026_top_scorers(api_key: str, league_id: int) -> tuple[dict, str]:
-    """
-    Multi-strategy scorer fetch using the correct league ID.
-    Returns (squads_dict, debug_message).
-    """
-    debug_lines = []
-    debug_lines.append(f"Using league_id={league_id}, season={WC2026_SEASON}")
-
-    def build_squads(team_goals: dict) -> dict:
-        squads: dict = {}
-        for team, players in team_goals.items():
-            total = sum(g for _, g in players)
-            if total == 0:
-                continue
-            top4      = sorted(players, key=lambda x: -x[1])[:4]
-            top_share = sum(g for _, g in top4) / total
-            sl        = [(nm, round(g / total, 3)) for nm, g in top4]
-            if top_share < 1.0:
-                sl.append(("Other", round(1.0 - top_share, 3)))
-            squads[team] = sl
-        return squads
-
-    # ── Strategy 1: /players/topscorers ──────────────────────────────────────
-    url1  = (f"https://v3.football.api-sports.io/players/topscorers"
-             f"?league={league_id}&season={WC2026_SEASON}")
-    data1 = api_get(url1, api_key)
-    resp1 = (data1 or {}).get("response") or []
-    debug_lines.append(f"Strategy 1 (/topscorers): {len(resp1)} entries")
-    team_goals_1: dict = defaultdict(list)
-    for entry in resp1:
-        p        = entry.get("player") or {}
-        stats    = ((entry.get("statistics") or [{}])[0])
-        name     = p.get("name", "")
-        goals    = int((stats.get("goals") or {}).get("total") or 0)
-        team_api = (stats.get("team") or {}).get("name", "")
-        team     = API_NAME_MAP.get(team_api)
-        if team and name and goals > 0:
-            team_goals_1[team].append((name, goals))
-    if team_goals_1:
-        debug_lines.append(f"✅ Strategy 1 success: {len(team_goals_1)} teams")
-        return build_squads(team_goals_1), "\n".join(debug_lines)
-    debug_lines.append("Strategy 1: no goals found → trying Strategy 2")
-
-    # ── Strategy 2: /players (full list, scan for goals) ─────────────────────
-    url2      = (f"https://v3.football.api-sports.io/players"
-                 f"?league={league_id}&season={WC2026_SEASON}&page=1")
-    data2     = api_get(url2, api_key)
-    resp2     = (data2 or {}).get("response") or []
-    total_pg  = (data2 or {}).get("paging", {}).get("total", 1) if data2 else 1
-    for pg in range(2, min(total_pg + 1, 6)):
-        more = api_get(url2.replace("page=1", f"page={pg}"), api_key)
-        if more and more.get("response"):
-            resp2.extend(more["response"])
-    debug_lines.append(f"Strategy 2 (/players): {len(resp2)} player entries across {total_pg} pages")
-    team_goals_2: dict = defaultdict(list)
-    for entry in resp2:
-        p        = entry.get("player") or {}
-        stats    = ((entry.get("statistics") or [{}])[0])
-        name     = p.get("name", "")
-        goals    = int((stats.get("goals") or {}).get("total") or 0)
-        team_api = (stats.get("team") or {}).get("name", "")
-        team     = API_NAME_MAP.get(team_api)
-        if team and name and goals > 0:
-            team_goals_2[team].append((name, goals))
-    if team_goals_2:
-        debug_lines.append(f"✅ Strategy 2 success: {len(team_goals_2)} teams")
-        return build_squads(team_goals_2), "\n".join(debug_lines)
-    debug_lines.append("Strategy 2: no goals found → trying Strategy 3 (fixture events)")
-
-    # ── Strategy 3: goal events from each completed fixture ───────────────────
-    fix_url  = (f"https://v3.football.api-sports.io/fixtures"
-                f"?league={league_id}&season={WC2026_SEASON}&status=FT")
-    fix_data = api_get(fix_url, api_key)
-    fixtures = (fix_data or {}).get("response") or []
-    debug_lines.append(f"Strategy 3: {len(fixtures)} completed fixtures")
-    player_goals_raw: dict = defaultdict(lambda: {"goals": 0, "team": ""})
-    for fix in fixtures:
-        fix_id = (fix.get("fixture") or {}).get("id", "")
-        if not fix_id:
-            continue
-        ev_data = api_get(
-            f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}",
-            api_key)
-        for ev in (ev_data or {}).get("response") or []:
-            if (ev.get("type") or "").lower() != "goal":
-                continue
-            detail = (ev.get("detail") or "").lower()
-            if "own goal" in detail or "penalty" in detail:
-                continue
-            pname    = (ev.get("player") or {}).get("name", "")
-            team_api = (ev.get("team") or {}).get("name", "")
-            team     = API_NAME_MAP.get(team_api)
-            if pname and team:
-                player_goals_raw[pname]["goals"] += 1
-                player_goals_raw[pname]["team"]   = team
-    team_goals_3: dict = defaultdict(list)
-    for pname, info in player_goals_raw.items():
-        if info["goals"] > 0 and info["team"]:
-            team_goals_3[info["team"]].append((pname, info["goals"]))
-    total_goals_found = sum(len(v) for v in team_goals_3.values())
-    debug_lines.append(f"Strategy 3: {total_goals_found} player-goal records from events")
-    if team_goals_3:
-        debug_lines.append(f"✅ Strategy 3 success: {len(team_goals_3)} teams")
-        return build_squads(team_goals_3), "\n".join(debug_lines)
-
-    debug_lines.append("❌ All strategies returned 0 data.")
-    debug_lines.append("Possible causes:")
-    debug_lines.append("  • WC 2026 group stage may not have produced scorer data yet on this API plan")
-    debug_lines.append(f"  • Confirmed league_id={league_id} — check above discovery log if wrong")
-    debug_lines.append("  • Your API plan may not include player stats for this competition")
-    debug_lines.append("  • Try: https://v3.football.api-sports.io/leagues?id=" + str(league_id) + "&season=2026 in browser with your key")
-    return {}, "\n".join(debug_lines)
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_player_cards_from_api(api_key: str) -> list[tuple]:
-    base_url = (f"https://v3.football.api-sports.io/players"
-                f"?league={WC2026_LEAGUE_ID}&season={WC2026_SEASON}&page=1")
-    data = api_get(base_url, api_key)
-    if not data or not data.get("response"):
-        return []
-    total_pages = ((data.get("paging") or {}).get("total", 1))
-    responses   = list(data["response"])
-    for page in range(2, min(total_pages + 1, 8)):
-        more = api_get(base_url.replace("page=1", f"page={page}"), api_key)
-        if more and more.get("response"):
-            responses.extend(more["response"])
-    pos_map = {"Goalkeeper":"GK","Defender":"CB","Midfielder":"CM","Attacker":"ST"}
-    out = []
-    for entry in responses:
-        p        = entry.get("player") or {}
-        stats    = ((entry.get("statistics") or [{}])[0])
-        name     = p.get("name", "")
-        team_api = ((stats.get("team") or {}).get("name", ""))
-        team     = API_NAME_MAP.get(team_api)
-        if not team or not name:
-            continue
-        pos_raw  = ((stats.get("games") or {}).get("position") or "Midfielder")
-        pos      = pos_map.get(pos_raw, pos_raw[:2].upper())
-        rating_r = ((stats.get("games") or {}).get("rating"))
-        try:
-            overall = max(60, min(99, round(float(rating_r) * 10))) if rating_r else 75
-        except (ValueError, TypeError):
-            overall = 75
-        out.append((name, team, pos, overall, 0, 0, 0, 0, 0, 0))
+            out[t] = base
     return out
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CARD RENDERING
-# ══════════════════════════════════════════════════════════════════════════════
-def get_card_color(overall: int) -> tuple:
-    if overall >= 90:
-        return ("linear-gradient(145deg,#b8860b,#ffd700,#b8860b)", "#ffd700", "#3d2800")
-    elif overall >= 86:
-        return ("linear-gradient(145deg,#8b7536,#d4af37,#8b7536)", "#d4af37", "#2a1f00")
-    elif overall >= 82:
-        return ("linear-gradient(145deg,#7a7a7a,#c0c0c0,#7a7a7a)", "#c0c0c0", "#1a1a1a")
-    else:
-        return ("linear-gradient(145deg,#5a3a1a,#a0714a,#5a3a1a)", "#a0714a", "#f5e6d0")
+@st.cache_data(ttl=3600, show_spinner=False)
+def discover_league_id(key: str) -> tuple:
+    debug = []
+    for name in ["FIFA World Cup","World Cup"]:
+        data = api_get(f"https://v3.football.api-sports.io/leagues?name={name.replace(' ','+')}&season=2026", key)
+        resp = (data or {}).get("response") or []
+        debug.append(f"Search '{name}': {len(resp)} results")
+        for item in resp:
+            lg = (item.get("league") or {}); lid = lg.get("id")
+            debug.append(f"  id={lid} name={lg.get('name','')}")
+            if lid: return lid, "\n".join(debug)
+    for s in [2026,2025]:
+        data = api_get(f"https://v3.football.api-sports.io/leagues?id=1&season={s}", key)
+        resp = (data or {}).get("response") or []
+        debug.append(f"id=1 season={s}: {len(resp)} results")
+        if resp: return 1, "\n".join(debug)
+    data = api_get("https://v3.football.api-sports.io/leagues?type=Cup&season=2026", key)
+    resp = (data or {}).get("response") or []
+    debug.append(f"All Cup leagues 2026: {len(resp)}")
+    for item in resp:
+        lg = (item.get("league") or {}); nm = lg.get("name","").lower(); lid = lg.get("id")
+        debug.append(f"  id={lid} name={lg.get('name','')}")
+        if "world" in nm and lid: return lid, "\n".join(debug)
+    data = api_get("https://v3.football.api-sports.io/leagues?current=true", key)
+    resp = (data or {}).get("response") or []
+    debug.append(f"All current leagues: {len(resp)}")
+    for item in resp:
+        lg = (item.get("league") or {}); nm = lg.get("name","").lower(); lid = lg.get("id")
+        if "world" in nm or "fifa" in nm:
+            debug.append(f"  CANDIDATE id={lid} name={lg.get('name','')}")
+    debug.append("Fallback: league_id=1")
+    return 1, "\n".join(debug)
 
-def render_player_card(p: dict) -> str:
-    overall              = p["overall"]
-    bg, border, text_col = get_card_color(overall)
-    flag                 = BASE_TEAMS.get(p["team"], {}).get("flag", "🏳️")
-    is_gk                = p["pos"] == "GK"
-    stat_labels = ["DIV","HAN","KIC","REF","SPD","POS"] if is_gk else ["PAC","SHO","PAS","DRI","DEF","PHY"]
-    stat_vals   = [p["pace"], p["shooting"], p["passing"],
-                   p["dribbling"], p["defending"], p["physical"]]
-    # Build stat bars using plain string concat — avoids f-string CSS brace collision
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_top_scorers(key: str, lid: int) -> tuple:
+    debug = [f"league_id={lid} season={WC2026_SEASON}"]
+
+    def build_squads(tg: dict) -> dict:
+        out = {}
+        for team, players in tg.items():
+            total = sum(g for _,g in players)
+            if not total: continue
+            top4  = sorted(players,key=lambda x:-x[1])[:4]
+            ts    = sum(g for _,g in top4)/total
+            sl    = [(n,round(g/total,3)) for n,g in top4]
+            if ts < 1.0: sl.append(("Other",round(1.0-ts,3)))
+            out[team] = sl
+        return out
+
+    # Strategy 1: topscorers endpoint
+    data = api_get(f"https://v3.football.api-sports.io/players/topscorers?league={lid}&season={WC2026_SEASON}", key)
+    resp = (data or {}).get("response") or []
+    debug.append(f"S1 /topscorers: {len(resp)} entries")
+    tg1: dict = defaultdict(list)
+    for e in resp:
+        p=e.get("player") or {}; st=((e.get("statistics") or [{}])[0])
+        nm=p.get("name",""); g=int((st.get("goals") or {}).get("total") or 0)
+        tm=API_NAME_MAP.get((st.get("team") or {}).get("name",""))
+        if tm and nm and g>0: tg1[tm].append((nm,g))
+    if tg1:
+        debug.append(f"✅ S1 success: {len(tg1)} teams")
+        return build_squads(tg1), "\n".join(debug)
+    debug.append("S1 empty → S2")
+
+    # Strategy 2: players list
+    url2 = f"https://v3.football.api-sports.io/players?league={lid}&season={WC2026_SEASON}&page=1"
+    d2   = api_get(url2, key)
+    r2   = (d2 or {}).get("response") or []
+    pages = (d2 or {}).get("paging",{}).get("total",1) if d2 else 1
+    for pg in range(2,min(pages+1,6)):
+        more = api_get(url2.replace("page=1",f"page={pg}"),key)
+        if more and more.get("response"): r2.extend(more["response"])
+    debug.append(f"S2 /players: {len(r2)} entries over {pages} pages")
+    tg2: dict = defaultdict(list)
+    for e in r2:
+        p=e.get("player") or {}; st=((e.get("statistics") or [{}])[0])
+        nm=p.get("name",""); g=int((st.get("goals") or {}).get("total") or 0)
+        tm=API_NAME_MAP.get((st.get("team") or {}).get("name",""))
+        if tm and nm and g>0: tg2[tm].append((nm,g))
+    if tg2:
+        debug.append(f"✅ S2 success: {len(tg2)} teams")
+        return build_squads(tg2), "\n".join(debug)
+    debug.append("S2 empty → S3")
+
+    # Strategy 3: fixture events
+    fdata    = api_get(f"https://v3.football.api-sports.io/fixtures?league={lid}&season={WC2026_SEASON}&status=FT", key)
+    fixtures = (fdata or {}).get("response") or []
+    debug.append(f"S3: {len(fixtures)} finished fixtures")
+    raw: dict = defaultdict(lambda:{"goals":0,"team":""})
+    for fix in fixtures:
+        fid = (fix.get("fixture") or {}).get("id","")
+        if not fid: continue
+        for ev in (api_get(f"https://v3.football.api-sports.io/fixtures/events?fixture={fid}", key) or {}).get("response") or []:
+            if (ev.get("type") or "").lower()!="goal": continue
+            det = (ev.get("detail") or "").lower()
+            if "own" in det or "penalty" in det: continue
+            pn = (ev.get("player") or {}).get("name","")
+            tm = API_NAME_MAP.get((ev.get("team") or {}).get("name",""))
+            if pn and tm:
+                raw[pn]["goals"]+=1; raw[pn]["team"]=tm
+    tg3: dict = defaultdict(list)
+    for pn,info in raw.items():
+        if info["goals"]>0 and info["team"]: tg3[info["team"]].append((pn,info["goals"]))
+    debug.append(f"S3: {sum(len(v) for v in tg3.values())} records")
+    if tg3:
+        debug.append(f"✅ S3 success: {len(tg3)} teams")
+        return build_squads(tg3), "\n".join(debug)
+
+    debug.append("❌ All strategies failed. Check API plan / tournament progress.")
+    return {}, "\n".join(debug)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_wc_results(key: str, lid: int) -> tuple:
+    debug = []
+    fin   = {"FT","AET","PEN","AWD","WO"}
+    data  = api_get(f"https://v3.football.api-sports.io/fixtures?league={lid}&season={WC2026_SEASON}", key)
+    raw   = (data or {}).get("response") or []
+    debug.append(f"Total fixtures: {len(raw)}")
+    matches = []
+    for fix in raw:
+        f=fix.get("fixture") or {}; teams=fix.get("teams") or {}
+        goals=fix.get("goals") or {}; score=fix.get("score") or {}
+        status=(f.get("status") or {}).get("short","NS")
+        hn=API_NAME_MAP.get((teams.get("home") or {}).get("name",""),
+                            (teams.get("home") or {}).get("name",""))
+        an=API_NAME_MAP.get((teams.get("away") or {}).get("name",""),
+                            (teams.get("away") or {}).get("name",""))
+        gh=goals.get("home"); ga=goals.get("away")
+        winner=None
+        if status in fin and gh is not None and ga is not None:
+            if gh>ga: winner=hn
+            elif ga>gh: winner=an
+            else:
+                pen=(score.get("penalty") or {}); ph=pen.get("home"); pa=pen.get("away")
+                if ph is not None and pa is not None: winner=hn if ph>pa else an
+        matches.append({"home":hn,"away":an,"goals_home":int(gh) if gh is not None else None,
+                        "goals_away":int(ga) if ga is not None else None,
+                        "status":status,"winner":winner})
+    done = sum(1 for m in matches if m["status"] in fin)
+    live = sum(1 for m in matches if m["status"] in {"1H","2H","HT","ET","BT","P","INT"})
+    debug.append(f"Done:{done} Live:{live} Upcoming:{len(matches)-done-live}")
+    for m in [x for x in matches if x["status"] in fin][:6]:
+        debug.append(f"  {m['home']} {m['goals_home']}–{m['goals_away']} {m['away']} [{m['status']}] → {m['winner']}")
+    return matches, "\n".join(debug)
+
+def build_live_bracket(api_matches: list) -> list:
+    """API results first, hardcoded R32_RESULTS as fallback so scores always show."""
+    lookup: dict = {}
+    for m in api_matches:
+        lookup[(m["home"].lower(), m["away"].lower())] = m
+        lookup[(m["away"].lower(), m["home"].lower())] = m
+
+    # Supplement with hardcoded results where API has nothing
+    for home, away, date, gh, ga, status, winner in R32_RESULTS:
+        key = (home.lower(), away.lower())
+        if key not in lookup:
+            lookup[key] = {"home":home,"away":away,"goals_home":gh,
+                           "goals_away":ga,"status":status,"winner":winner}
+            lookup[(away.lower(), home.lower())] = lookup[key]
+
+    out = []
+    for home, away, date in R32_BRACKET:
+        live = lookup.get((home.lower(), away.lower()))
+        if live:
+            w = live.get("winner")
+            gh_v = live.get("goals_home")
+            ga_v = live.get("goals_away")
+            # Flip if stored in reverse direction
+            if live["home"].lower() == away.lower():
+                gh_v, ga_v = ga_v, gh_v
+                if w == live["home"]: w = away
+                elif w == live["away"]: w = home
+            out.append({"home":home,"away":away,"date":date,
+                        "goals_home":gh_v,"goals_away":ga_v,
+                        "status":live["status"],"winner":w,
+                        "flag_h":BASE_TEAMS.get(home,{}).get("flag","🏳️"),
+                        "flag_a":BASE_TEAMS.get(away,{}).get("flag","🏳️")})
+        else:
+            out.append({"home":home,"away":away,"date":date,
+                        "goals_home":None,"goals_away":None,
+                        "status":"NS","winner":None,
+                        "flag_h":BASE_TEAMS.get(home,{}).get("flag","🏳️"),
+                        "flag_a":BASE_TEAMS.get(away,{}).get("flag","🏳️")})
+    return out
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_player_cards_api(key: str) -> list:
+    url  = f"https://v3.football.api-sports.io/players?league={WC2026_LEAGUE_ID}&season={WC2026_SEASON}&page=1"
+    data = api_get(url, key)
+    if not data or not data.get("response"): return []
+    pages = (data.get("paging") or {}).get("total",1)
+    resp  = list(data["response"])
+    for pg in range(2,min(pages+1,8)):
+        more = api_get(url.replace("page=1",f"page={pg}"),key)
+        if more and more.get("response"): resp.extend(more["response"])
+    pm  = {"Goalkeeper":"GK","Defender":"CB","Midfielder":"CM","Attacker":"ST"}
+    out = []
+    for e in resp:
+        p=e.get("player") or {}; st=((e.get("statistics") or [{}])[0])
+        nm=p.get("name",""); tm=API_NAME_MAP.get((st.get("team") or {}).get("name",""))
+        if not tm or not nm: continue
+        pos=pm.get((st.get("games") or {}).get("position","Midfielder"),"CM")
+        try: ovr=max(60,min(99,round(float((st.get("games") or {}).get("rating") or 0)*10))) if (st.get("games") or {}).get("rating") else 75
+        except: ovr=75
+        out.append((nm,tm,pos,ovr,0,0,0,0,0,0))
+    return out
+
+# ══════════════════════════════════════════════════════════════════════
+# CARD RENDER
+# ══════════════════════════════════════════════════════════════════════
+def card_color(ovr: int) -> tuple:
+    if ovr>=90: return ("linear-gradient(145deg,#b8860b,#ffd700,#b8860b)","#ffd700","#3d2800")
+    if ovr>=86: return ("linear-gradient(145deg,#8b7536,#d4af37,#8b7536)","#d4af37","#2a1f00")
+    if ovr>=82: return ("linear-gradient(145deg,#7a7a7a,#c0c0c0,#7a7a7a)","#c0c0c0","#1a1a1a")
+    return ("linear-gradient(145deg,#5a3a1a,#a0714a,#5a3a1a)","#a0714a","#f5e6d0")
+
+def render_card(p: dict) -> str:
+    bg,border,tc = card_color(p["overall"])
+    flag = BASE_TEAMS.get(p["team"],{}).get("flag","🏳️")
+    labs = ["DIV","HAN","KIC","REF","SPD","POS"] if p["pos"]=="GK" else ["PAC","SHO","PAS","DRI","DEF","PHY"]
+    vals = [p["pace"],p["shooting"],p["passing"],p["dribbling"],p["defending"],p["physical"]]
     rows = []
-    for label, val in zip(stat_labels, stat_vals):
-        if val == 0:
-            continue
-        rows.append(
-            '<div style="display:flex;align-items:center;gap:4px;margin:2px 0;">'
-            + '<span style="font-size:9px;font-weight:800;width:26px;color:' + text_col + ';opacity:0.85;">' + label + '</span>'
-            + '<div style="flex:1;background:rgba(0,0,0,0.2);border-radius:3px;height:5px;">'
-            + '<div style="width:' + str(val) + '%;background:' + text_col + ';height:5px;border-radius:3px;opacity:0.9;"></div>'
-            + '</div>'
-            + '<span style="font-size:10px;font-weight:700;width:22px;text-align:right;color:' + text_col + ';">' + str(val) + '</span>'
-            + '</div>'
-        )
-    stats_html   = "".join(rows)
-    no_stats_msg = ('<div style="font-size:9px;opacity:0.7;text-align:center;margin-top:4px;color:'
-                    + text_col + ';">Stats in built-in mode</div>') if all(v == 0 for v in stat_vals) else ""
-    return (
-        '<div style="background:' + bg + ';border:2px solid ' + border + ';border-radius:12px;'
-        + 'padding:10px 10px 8px 10px;width:145px;min-height:220px;'
-        + 'box-shadow:0 4px 15px rgba(0,0,0,0.4);font-family:Segoe UI,sans-serif;'
-        + 'display:flex;flex-direction:column;align-items:center;position:relative;box-sizing:border-box;">'
-        + '<div style="font-size:28px;font-weight:900;color:' + text_col + ';line-height:1;">' + str(overall) + '</div>'
-        + '<div style="font-size:10px;font-weight:700;color:' + text_col + ';opacity:0.8;letter-spacing:1px;">' + p["pos"] + '</div>'
-        + '<div style="font-size:20px;margin:4px 0 2px 0;">' + flag + '</div>'
-        + '<div style="font-size:11px;font-weight:800;color:' + text_col + ';text-align:center;'
-        + 'line-height:1.2;margin-bottom:6px;max-width:125px;word-break:break-word;">' + p["name"] + '</div>'
-        + '<div style="width:100%;border-top:1px solid rgba(0,0,0,0.2);padding-top:5px;">'
-        + stats_html + no_stats_msg
-        + '</div>'
-        + '<div style="position:absolute;bottom:5px;right:7px;font-size:8px;'
-        + 'color:' + text_col + ';opacity:0.5;font-weight:600;">' + p["team"][:10] + '</div>'
-        + '</div>'
-    )
+    for l,v in zip(labs,vals):
+        if v==0: continue
+        rows.append('<div style="display:flex;align-items:center;gap:3px;margin:1px 0;">'
+            +'<span style="font-size:8px;font-weight:800;width:24px;color:'+tc+';opacity:.85;">'+l+'</span>'
+            +'<div style="flex:1;background:rgba(0,0,0,.2);border-radius:2px;height:4px;">'
+            +'<div style="width:'+str(v)+'%;background:'+tc+';height:4px;border-radius:2px;opacity:.9;"></div>'
+            +'</div>'
+            +'<span style="font-size:9px;font-weight:700;width:20px;text-align:right;color:'+tc+';">'+str(v)+'</span>'
+            +'</div>')
+    sh = "".join(rows)
+    nm = ('<div style="font-size:9px;opacity:.6;text-align:center;color:'+tc+';">stats in built-in mode</div>'
+          if all(v==0 for v in vals) else "")
+    return ('<div style="background:'+bg+';border:2px solid '+border+';border-radius:10px;'
+        +'padding:8px 8px 6px;width:140px;min-height:210px;box-shadow:0 3px 12px rgba(0,0,0,.4);'
+        +'font-family:inherit;display:flex;flex-direction:column;align-items:center;'
+        +'position:relative;box-sizing:border-box;">'
+        +'<div style="font-size:26px;font-weight:900;color:'+tc+';line-height:1;">'+str(p["overall"])+'</div>'
+        +'<div style="font-size:9px;font-weight:700;color:'+tc+';opacity:.8;letter-spacing:1px;">'+p["pos"]+'</div>'
+        +'<div style="font-size:18px;margin:3px 0 1px;">'+flag+'</div>'
+        +'<div style="font-size:10px;font-weight:800;color:'+tc+';text-align:center;'
+        +'line-height:1.2;margin-bottom:5px;max-width:118px;word-break:break-word;">'+p["name"]+'</div>'
+        +'<div style="width:100%;border-top:1px solid rgba(0,0,0,.2);padding-top:4px;">'+sh+nm+'</div>'
+        +'<div style="position:absolute;bottom:4px;right:6px;font-size:7px;color:'+tc+';opacity:.4;">'+p["team"][:10]+'</div>'
+        +'</div>')
 
-# ══════════════════════════════════════════════════════════════════════════════
-# RUNTIME STATE — mutated by sidebar, read by simulation functions
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════
+# RUNTIME STATE
+# ══════════════════════════════════════════════════════════════════════
 TEAMS          = dict(BASE_TEAMS)
-HOST_ADVANTAGE = dict(DEFAULT_HOST_ADVANTAGE)
-TEAM_BOOST: dict = {}
+HOST_ADVANTAGE = dict(DEFAULT_HOST_ADV)
+TEAM_BOOST:    dict = {}
 SQUADS         = dict(FALLBACK_SQUADS)
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════
 # SIMULATION ENGINE
-# ══════════════════════════════════════════════════════════════════════════════
-def get_team(name: str) -> dict:
-    return TEAMS.get(name, {"flag":"🏳️","atk":1.25,"def":0.91,"elo":1650})
+# ══════════════════════════════════════════════════════════════════════
+def get_team(n: str) -> dict:
+    return TEAMS.get(n,{"flag":"🏳️","atk":1.25,"def":0.91,"elo":1650})
 
-def expected_goals(team_a: str, team_b: str) -> tuple:
-    ta, tb    = get_team(team_a), get_team(team_b)
-    boost_a   = HOST_ADVANTAGE.get(team_a, 0.0)
-    boost_b   = HOST_ADVANTAGE.get(team_b, 0.0)
-    manual_a  = TEAM_BOOST.get(team_a, 1.0)
-    manual_b  = TEAM_BOOST.get(team_b, 1.0)
-    xg_a = ta["atk"] * tb["def"] * (1 + boost_a) * manual_a
-    xg_b = tb["atk"] * ta["def"] * (1 + boost_b) * manual_b
-    return xg_a, xg_b
+def xg(a: str, b: str) -> tuple:
+    ta=get_team(a); tb=get_team(b)
+    return (ta["atk"]*tb["def"]*(1+HOST_ADVANTAGE.get(a,0))*TEAM_BOOST.get(a,1.0),
+            tb["atk"]*ta["def"]*(1+HOST_ADVANTAGE.get(b,0))*TEAM_BOOST.get(b,1.0))
 
-def simulate_penalties(team_a: str, team_b: str) -> str:
-    p_a = PENALTY_WIN_RATE.get(team_a, 0.50)
-    p_b = PENALTY_WIN_RATE.get(team_b, 0.50)
-    return team_a if random.random() < (p_a / (p_a + p_b)) else team_b
+def sim_penalties(a: str, b: str) -> str:
+    pa=PENALTY_WIN_RATE.get(a,.5); pb=PENALTY_WIN_RATE.get(b,.5)
+    return a if random.random()<pa/(pa+pb) else b
 
-def distribute_goals(team: str, n_goals: int) -> dict:
-    players = SQUADS.get(team, [("Other", 1.0)])
-    names   = [p[0] for p in players]
-    weights = np.array([p[1] for p in players], dtype=float)
-    weights /= weights.sum()
-    tally: dict = defaultdict(int)
-    for _ in range(n_goals):
-        tally[np.random.choice(names, p=weights)] += 1
-    return dict(tally)
+def dist_goals(team: str, n: int) -> dict:
+    ps=SQUADS.get(team,[("Other",1.0)]); ns=[p[0] for p in ps]
+    w=np.array([p[1] for p in ps],dtype=float); w/=w.sum()
+    t: dict = defaultdict(int)
+    for _ in range(n): t[np.random.choice(ns,p=w)]+=1
+    return dict(t)
 
-def simulate_match(team_a: str, team_b: str) -> tuple:
-    xg_a, xg_b = expected_goals(team_a, team_b)
-    ga = int(np.random.poisson(xg_a))
-    gb = int(np.random.poisson(xg_b))
-    if ga == gb:
-        ga += int(np.random.poisson(xg_a * 0.33))
-        gb += int(np.random.poisson(xg_b * 0.33))
-        if ga == gb:
-            winner = simulate_penalties(team_a, team_b)
-            return winner, ga, gb, distribute_goals(team_a, ga), distribute_goals(team_b, gb)
-    winner = team_a if ga > gb else team_b
-    return winner, ga, gb, distribute_goals(team_a, ga), distribute_goals(team_b, gb)
+def sim_match(a: str, b: str) -> tuple:
+    xa,xb=xg(a,b)
+    ga=int(np.random.poisson(xa)); gb=int(np.random.poisson(xb))
+    if ga==gb:
+        ga+=int(np.random.poisson(xa*.33)); gb+=int(np.random.poisson(xb*.33))
+        if ga==gb:
+            w=sim_penalties(a,b)
+            return w,ga,gb,dist_goals(a,ga),dist_goals(b,gb)
+    w=a if ga>gb else b
+    return w,ga,gb,dist_goals(a,ga),dist_goals(b,gb)
 
-def simulate_tournament() -> tuple:
-    survivors: list  = []
-    player_goals: dict = defaultdict(int)
-    for home, away, _ in R32_BRACKET:
-        if away == "TBD":
-            survivors.append(home)
-        else:
-            winner, _, _, sc_h, sc_a = simulate_match(home, away)
-            for p, g in {**sc_h, **sc_a}.items(): player_goals[p] += g
-            survivors.append(winner)
-    while len(survivors) > 1:
-        nxt = []
-        for i in range(0, len(survivors), 2):
-            if i + 1 >= len(survivors):
-                nxt.append(survivors[i])
-            else:
-                winner, _, _, sc_a, sc_b = simulate_match(survivors[i], survivors[i+1])
-                for p, g in {**sc_a, **sc_b}.items(): player_goals[p] += g
-                nxt.append(winner)
-        survivors = nxt
-    return survivors[0], dict(player_goals)
+def sim_tournament() -> tuple:
+    sur: list=[]; pg: dict=defaultdict(int)
+    for home,away,_ in R32_BRACKET:
+        if away=="TBD": sur.append(home); continue
+        w,_,_,sh,sa=sim_match(home,away)
+        for p,g in {**sh,**sa}.items(): pg[p]+=g
+        sur.append(w)
+    while len(sur)>1:
+        nxt=[]
+        for i in range(0,len(sur),2):
+            if i+1>=len(sur): nxt.append(sur[i]); continue
+            w,_,_,sa,sb=sim_match(sur[i],sur[i+1])
+            for p,g in {**sa,**sb}.items(): pg[p]+=g
+            nxt.append(w)
+        sur=nxt
+    return sur[0],dict(pg)
 
 @st.cache_data(show_spinner=False)
-def run_simulations(n: int, seed: int, teams_hash: str) -> tuple:
-    np.random.seed(seed)
-    random.seed(seed)
-    win_counts: dict = {}
-    gb_totals: dict  = defaultdict(list)
+def run_sims(n: int, seed: int, thash: str) -> tuple:
+    np.random.seed(seed); random.seed(seed)
+    wc: dict={}; gbt: dict=defaultdict(list)
     for _ in range(n):
-        champ, pg = simulate_tournament()
-        win_counts[champ] = win_counts.get(champ, 0) + 1
-        for p, g in pg.items():
-            gb_totals[p].append(g)
-    gb_avg   = {p: sum(gs) / n for p, gs in gb_totals.items() if p != "Other"}
-    total_g  = sum(gb_avg.values())
-    gb_prob  = {p: v / total_g for p, v in gb_avg.items()} if total_g > 0 else {}
-    return win_counts, gb_prob
+        ch,pg=sim_tournament()
+        wc[ch]=wc.get(ch,0)+1
+        for p,g in pg.items(): gbt[p].append(g)
+    ga  ={p:sum(gs)/n for p,gs in gbt.items() if p!="Other"}
+    tot =sum(ga.values())
+    return wc, ({p:v/tot for p,v in ga.items()} if tot>0 else {})
 
-def _find_team(player: str) -> str:
-    for team, players in SQUADS.items():
-        if any(nm == player for nm, _ in players):
-            return team
+def find_team(player: str) -> str:
+    for t,ps in SQUADS.items():
+        if any(nm==player for nm,_ in ps): return t
     return "—"
 
-def _find_flag(player: str) -> str:
-    return TEAMS.get(_find_team(player), {}).get("flag", "")
+def find_flag(player: str) -> str:
+    return TEAMS.get(find_team(player),{}).get("flag","")
 
-def h2h_win_prob(team_a: str, team_b: str, n: int = 20_000) -> dict:
-    res = {"team_a": 0, "team_b": 0, "draw_90": 0}
-    xg_a, xg_b = expected_goals(team_a, team_b)
+def h2h(a: str, b: str, n: int=20_000) -> dict:
+    res={"team_a":0,"team_b":0,"draw_90":0}
+    xa,xb=xg(a,b)
     for _ in range(n):
-        ga = int(np.random.poisson(xg_a))
-        gb = int(np.random.poisson(xg_b))
-        if ga > gb:   res["team_a"] += 1
-        elif gb > ga: res["team_b"] += 1
-        else:         res["draw_90"] += 1
-    return {k: v / n * 100 for k, v in res.items()}
+        ga=int(np.random.poisson(xa)); gb=int(np.random.poisson(xb))
+        if ga>gb: res["team_a"]+=1
+        elif gb>ga: res["team_b"]+=1
+        else: res["draw_90"]+=1
+    return {k:v/n*100 for k,v in res.items()}
 
-# ══════════════════════════════════════════════════════════════════════════════
-# UI
-# ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════
+# UI — Header
+# ══════════════════════════════════════════════════════════════════════
 st.title("🏆 2026 World Cup Simulator")
 st.caption("Poisson model · Monte Carlo · Elo ratings · Live API · USA / Mexico / Canada")
 
-st.markdown(f"""
-<div class="densebar">
-  <div><div class="dl">Teams</div><div class="dv">{len(BASE_TEAMS)}</div></div>
-  <div><div class="dl">R32 matches</div><div class="dv">{len(R32_BRACKET)}</div></div>
-  <div><div class="dl">Player cards</div><div class="dv">{len(PLAYER_CARDS_FALLBACK)}</div></div>
-  <div><div class="dl">WC titles tracked</div><div class="dv">22</div></div>
-  <div><div class="dl">Top Elo</div><div class="dv">{max(BASE_TEAMS.values(), key=lambda x:x['elo'])['flag']} {max(BASE_TEAMS, key=lambda k:BASE_TEAMS[k]['elo'])}</div></div>
-  <div><div class="dl">Hosts</div><div class="dv">🇺🇸 🇲🇽 🇨🇦</div></div>
-</div>
-""", unsafe_allow_html=True)
+top_elo_team = max(BASE_TEAMS, key=lambda k: BASE_TEAMS[k]["elo"])
+st.markdown(f"""<div class="dbar">
+<div><div class="dl">Teams</div><div class="dv">{len(BASE_TEAMS)}</div></div>
+<div><div class="dl">R32 fixtures</div><div class="dv">{len(R32_BRACKET)}</div></div>
+<div><div class="dl">Player cards</div><div class="dv">{len(PLAYER_CARDS_FALLBACK)}</div></div>
+<div><div class="dl">WC editions</div><div class="dv">22</div></div>
+<div><div class="dl">Avg Elo</div><div class="dv">{int(sum(v['elo'] for v in BASE_TEAMS.values())/len(BASE_TEAMS))}</div></div>
+<div><div class="dl">Top Elo</div><div class="dv">{BASE_TEAMS[top_elo_team]['flag']} {top_elo_team}</div></div>
+<div><div class="dl">Hosts</div><div class="dv">🇺🇸 🇲🇽 🇨🇦</div></div>
+</div>""", unsafe_allow_html=True)
 
-# Module-scope defaults so all tabs can read them even without API
-ratings_source  = "Built-in (June 2026)"
-n_matches_used  = 0
-squads_source   = "Built-in squad data"
-api_status_log: list[tuple[str,str,str]] = []  # (icon, label, detail)
-scorer_debug_log = ""
-league_debug_log = ""
-wc_league_id_found = WC2026_LEAGUE_ID
+# ── Module-scope defaults ─────────────────────────────────────────────────────
+ratings_source = "Built-in (June 2026)"
+n_matches_used = 0
+squads_source  = "Built-in squad data"
+api_log:       list = []   # (icon, label, detail)
+scorer_debug   = ""
+league_debug   = ""
+wc_lid         = WC2026_LEAGUE_ID
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ══════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.header("🔑 API Settings")
-    api_key = st.text_input("API-Football Key", type="password",
-                            help="api-football.com key for live ratings & scorer data")
+    st.markdown("### ⚙️ Controls")
+    api_key = st.text_input("API-Football key", type="password",
+                            help="api-football.com key for live data")
     use_api = st.checkbox("Enable live API", value=False)
 
     if use_api and api_key:
-        # Step 1: connection test
         with st.spinner("Connecting…"):
             status = fetch_live_data(api_key)
         if not status:
-            st.warning("⚠️ API connection failed.")
-            api_status_log.append(("❌", "API connection", "fetch_live_data returned None — check your key"))
+            st.warning("⚠️ Connection failed.")
+            api_log.append(("❌","API connection","Returned None — check key"))
         else:
-            plan, used, limit = parse_account_info(status)
-            api_status_log.append(("✅", "API connected", f"Plan: {plan} · Requests today: {used}/{limit}"))
-            st.success("✅ API connected")
+            plan,used,limit = parse_account_info(status)
+            api_log.append(("✅","Connected",f"Plan: {plan} · Reqs: {used}/{limit}"))
+            st.success(f"✅ {plan} · {used}/{limit} reqs")
 
-            # Step 2: match ratings
-            with st.spinner("Fetching match results…"):
-                results_data, ratings_debug = fetch_recent_international_results(api_key)
-            if results_data:
-                live_teams = compute_ratings_from_results(results_data)
-                TEAMS.update(live_teams)
-                n_matches_used = len(results_data)
-                ratings_source = f"Live API ({n_matches_used} matches)"
-                api_status_log.append(("✅", "Team ratings", f"{n_matches_used} international matches fetched and applied\n" + "\n".join(ratings_debug)))
-                st.success(f"✅ Ratings: {n_matches_used} matches")
+            with st.spinner("Ratings…"):
+                res_data, rat_debug = fetch_recent_results(api_key)
+            if res_data:
+                TEAMS.update(compute_ratings(res_data))
+                n_matches_used = len(res_data)
+                ratings_source = f"Live ({n_matches_used} matches)"
+                api_log.append(("✅","Ratings",f"{n_matches_used} matches\n"+"\n".join(rat_debug)))
+                st.success(f"✅ {n_matches_used} matches")
             else:
-                api_status_log.append(("⚠️", "Team ratings", "0 matches returned\n" + "\n".join(ratings_debug)))
+                api_log.append(("⚠️","Ratings","0 matches\n"+"\n".join(rat_debug)))
 
-            # Step 3: discover WC 2026 league ID
-            with st.spinner("Finding WC 2026 league ID…"):
-                wc_league_id_found, league_debug_log = discover_wc2026_league_id(api_key)
-            api_status_log.append(("🔍", "League ID discovery", f"Using league_id={wc_league_id_found}"))
+            with st.spinner("League ID…"):
+                wc_lid, league_debug = discover_league_id(api_key)
+            api_log.append(("🔍","League ID",f"league_id={wc_lid}"))
 
-            # Step 4: scorer data
-            with st.spinner("Fetching scorer data…"):
-                api_squads, scorer_debug_log = fetch_wc2026_top_scorers(api_key, wc_league_id_found)
+            with st.spinner("Scorers…"):
+                api_squads, scorer_debug = fetch_top_scorers(api_key, wc_lid)
             if api_squads:
                 SQUADS.update(api_squads)
-                squads_source = f"Live WC scorers ({len(api_squads)} teams)"
-                api_status_log.append(("✅", "Scorer data", f"{len(api_squads)} teams · {sum(len(v) for v in api_squads.values())} player records loaded"))
+                squads_source = f"Live WC ({len(api_squads)} teams)"
+                api_log.append(("✅","Scorers",f"{len(api_squads)} teams · {sum(len(v) for v in api_squads.values())} records"))
                 st.success(f"✅ Scorers: {len(api_squads)} teams")
             else:
-                api_status_log.append(("❌", "Scorer data", "0 records returned — see API Status tab for full debug log"))
+                api_log.append(("❌","Scorers","0 records — see API Status tab"))
                 st.warning("⚠️ No scorer data — see API Status tab")
     else:
-        st.info("🔵 Add an API key to enable live ratings.")
-        api_status_log.append(("🔵", "API disabled", "Enable live API and enter a key to connect"))
+        st.info("🔵 Add key for live data")
+        api_log.append(("🔵","Offline","Using built-in data"))
 
     st.divider()
-    st.subheader("🏟️ Host-nation advantage")
-    ha_usa    = st.slider("🇺🇸 USA",    0.0, 0.60, DEFAULT_HOST_ADVANTAGE["USA"],    0.01, key="ha_usa")
-    ha_mexico = st.slider("🇲🇽 Mexico", 0.0, 0.60, DEFAULT_HOST_ADVANTAGE["Mexico"], 0.01, key="ha_mex")
-    ha_canada = st.slider("🇨🇦 Canada", 0.0, 0.60, DEFAULT_HOST_ADVANTAGE["Canada"], 0.01, key="ha_can")
-    HOST_ADVANTAGE["USA"]    = ha_usa
-    HOST_ADVANTAGE["Mexico"] = ha_mexico
-    HOST_ADVANTAGE["Canada"] = ha_canada
+    st.markdown("**🏟️ Host advantage**")
+    ha_usa    = st.slider("🇺🇸 USA",    0.0,0.6, DEFAULT_HOST_ADV["USA"],    0.01, key="ha_usa")
+    ha_mexico = st.slider("🇲🇽 Mexico", 0.0,0.6, DEFAULT_HOST_ADV["Mexico"], 0.01, key="ha_mex")
+    ha_canada = st.slider("🇨🇦 Canada", 0.0,0.6, DEFAULT_HOST_ADV["Canada"], 0.01, key="ha_can")
+    HOST_ADVANTAGE.update({"USA":ha_usa,"Mexico":ha_mexico,"Canada":ha_canada})
 
     st.divider()
-    st.subheader("⚡ Team boost")
-    boost_team = st.selectbox("Team", ["(none)"] + sorted(TEAMS.keys()), key="boost_team")
-    boost_val  = st.slider("Attack multiplier", 0.5, 2.0, 1.0, 0.05, key="boost_val",
-                           help="1.5 = team scores 50% more than their rating suggests")
-    if boost_team != "(none)":
-        TEAM_BOOST[boost_team] = boost_val
-        if boost_val != 1.0:
+    st.markdown("**⚡ Team boost**")
+    boost_team = st.selectbox("Team",["(none)"]+sorted(TEAMS.keys()),key="boost_team")
+    boost_val  = st.slider("Attack ×",0.5,2.0,1.0,0.05,key="boost_val")
+    if boost_team!="(none)":
+        TEAM_BOOST[boost_team]=boost_val
+        if boost_val!=1.0:
             st.caption(f"{TEAMS.get(boost_team,{}).get('flag','')} {boost_team} ×{boost_val:.2f}")
 
     st.divider()
-    st.caption(f"**Ratings** {ratings_source}")
-    st.caption(f"**Scorers** {squads_source}")
-    n_boosted = sum(1 for v in TEAM_BOOST.values() if v != 1.0)
-    n_host_adj = sum(1 for k,v in HOST_ADVANTAGE.items() if v != DEFAULT_HOST_ADVANTAGE.get(k))
-    st.caption(f"**Active overrides** {n_boosted} boost · {n_host_adj} host adj")
-    st.caption(f"**Squad data** {sum(len(v) for v in SQUADS.values())} player-share records")
-    st.caption(f"**Penalty data** {len(PENALTY_WIN_RATE)} teams tracked")
+    n_boost = sum(1 for v in TEAM_BOOST.values() if v!=1.0)
+    n_hadj  = sum(1 for k,v in HOST_ADVANTAGE.items() if abs(v-DEFAULT_HOST_ADV.get(k,0))>0.001)
+    for line in [
+        f"Ratings: {ratings_source}",
+        f"Scorers: {squads_source}",
+        f"Boosts active: {n_boost} · Host adj: {n_hadj}",
+        f"Squad records: {sum(len(v) for v in SQUADS.values())}",
+        f"Pen data: {len(PENALTY_WIN_RATE)} teams",
+    ]: st.caption(line)
 
-# ── Tabs ───────────────────────────────────────────────────────────────────────
-tab_sim, tab_gb, tab_cards, tab_h2h, tab_bracket, tab_map, tab_history, tab_model, tab_api = st.tabs([
-    "📊 Simulation", "👟 Golden Boot", "🃏 Player Cards",
-    "⚔️ Head-to-head", "🗓️ R32 Bracket", "🗺️ Team Map",
-    "🏆 WC History", "🔬 How it works", "🔌 API Status",
+# ══════════════════════════════════════════════════════════════════════
+# TABS
+# ══════════════════════════════════════════════════════════════════════
+tab_sim,tab_gb,tab_cards,tab_h2h,tab_bracket,tab_map,tab_hist,tab_model,tab_api = st.tabs([
+    "📊 Simulation","👟 Golden Boot","🃏 Cards",
+    "⚔️ H2H","🗓️ Bracket","🗺️ Map",
+    "🏆 History","🔬 Model","🔌 API",
 ])
 
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Tournament Simulation
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
+# TAB 1 — Simulation
+# ─────────────────────────────────────────────────────────────────────
 with tab_sim:
     st.subheader("Monte Carlo tournament simulation")
-    c1, c2 = st.columns(2)
+    c1,c2 = st.columns(2)
     with c1:
-        n_sims = st.slider("Simulations", 1_000, 5_000_000, 100_000, 100_000,
-                           help="More = more accurate. 5M takes a few minutes.")
+        n_sims = st.slider("Simulations",1_000,5_000_000,100_000,100_000)
     with c2:
-        seed = st.number_input("Random seed (0 = random)", value=0, step=1,
-                               help="Fix for reproducible results.")
+        seed = st.number_input("Seed (0=random)",value=0,step=1)
 
-    if st.button("▶  Run simulation", type="primary", use_container_width=True, key="run_sim"):
-        actual_seed = int(seed) if int(seed) != 0 else random.randint(1, 10_000_000)
-        teams_hash  = str(hash(str(sorted(
-            (k, v["atk"], v["def"], TEAM_BOOST.get(k, 1.0)) for k, v in TEAMS.items()
-        ))))
+    if st.button("▶ Run",type="primary",use_container_width=True,key="run_sim"):
+        s    = int(seed) if int(seed)!=0 else random.randint(1,10_000_000)
+        thsh = str(hash(str(sorted((k,v["atk"],v["def"],TEAM_BOOST.get(k,1.0)) for k,v in TEAMS.items()))))
         with st.spinner(f"Simulating {n_sims:,} tournaments…"):
-            win_counts, gb_prob = run_simulations(n_sims, actual_seed, teams_hash)
+            wc,gb_prob = run_sims(n_sims,s,thsh)
 
-        rows = [{"Flag": get_team(t)["flag"], "Team": t, "Elo": get_team(t)["elo"],
-                 "Wins": c, "Win %": round(c / n_sims * 100, 2)}
-                for t, c in win_counts.items()]
-        df = (pd.DataFrame(rows).sort_values("Win %", ascending=False)
-              .reset_index(drop=True))
-        df.insert(0, "Rank", df.index + 1)
+        rows=[{"Flag":get_team(t)["flag"],"Team":t,"Elo":get_team(t)["elo"],
+               "Wins":c,"Win%":round(c/n_sims*100,2)} for t,c in wc.items()]
+        df=(pd.DataFrame(rows).sort_values("Win%",ascending=False).reset_index(drop=True))
+        df.insert(0,"#",df.index+1)
 
-        top = df.iloc[0]
-        runner_str = ""
-        if len(df) > 1:
-            r = df.iloc[1]
-            runner_str = f" · +{top['Win %'] - r['Win %']:.1f}pp over {r['Team']}"
-        st.success(f"{top['Flag']} **{top['Team']}** — predicted champion "
-                   f"({top['Win %']:.1f}%{runner_str})")
+        top=df.iloc[0]
+        gap=f" · +{top['Win%']-df.iloc[1]['Win%']:.1f}pp over {df.iloc[1]['Team']}" if len(df)>1 else ""
+        st.success(f"{top['Flag']} **{top['Team']}** champion · {top['Win%']:.1f}%{gap}")
 
-        # Dense metric row — extra context at a glance
-        n_teams_with_chance = (df["Wins"] > 0).sum()
-        favourite_implied_odds = 100 / top["Win %"] if top["Win %"] > 0 else 0
-        top5_share = df.head(5)["Win %"].sum()
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Sims run", f"{n_sims:,}")
-        m2.metric("Teams w/ a title", int(n_teams_with_chance))
-        m3.metric("Top-5 share", f"{top5_share:.1f}%")
-        m4.metric("Favourite odds", f"{favourite_implied_odds:.1f}:1")
-        m5.metric("Field spread", f"{df['Win %'].std():.2f}σ")
+        # 5-metric dense row
+        m1,m2,m3,m4,m5 = st.columns(5)
+        m1.metric("Simulations",f"{n_sims:,}")
+        m2.metric("Teams w/ title",int((df["Wins"]>0).sum()))
+        m3.metric("Top-5 share",f"{df.head(5)['Win%'].sum():.1f}%")
+        m4.metric("Favourite odds",f"{100/top['Win%']:.1f}:1" if top['Win%']>0 else "—")
+        m5.metric("Spread σ",f"{df['Win%'].std():.2f}")
 
-        col_t, col_c = st.columns([3, 2], gap="medium")
-        with col_t:
-            st.markdown("#### Championship probabilities — full field")
+        cl,cr = st.columns([3,2],gap="medium")
+        with cl:
+            st.markdown("#### Full field — championship %")
             st.dataframe(
-                df[["Rank","Flag","Team","Elo","Wins","Win %"]]
-                .style.format({"Win %":"{:.2f}%","Elo":"{:,}","Wins":"{:,}"})
-                .background_gradient(cmap="Greens", subset=["Win %"]),
-                use_container_width=True, hide_index=True, height=420)
-        with col_c:
-            st.markdown("#### Top 12 win probability")
-            st.bar_chart(df.head(12).set_index("Team")[["Win %"]], use_container_width=True)
-            st.markdown("#### By confederation (rough)")
-            conf_map = {
-                "France":"UEFA","Spain":"UEFA","England":"UEFA","Germany":"UEFA","Portugal":"UEFA",
+                df[["#","Flag","Team","Elo","Wins","Win%"]]
+                .style.format({"Win%":"{:.2f}%","Elo":"{:,}","Wins":"{:,}"})
+                .background_gradient(cmap="Greens",subset=["Win%"]),
+                use_container_width=True,hide_index=True,height=430)
+        with cr:
+            st.markdown("#### Top 12")
+            st.bar_chart(df.head(12).set_index("Team")[["Win%"]],use_container_width=True)
+            st.markdown("#### By confederation")
+            cm={"France":"UEFA","Spain":"UEFA","England":"UEFA","Germany":"UEFA","Portugal":"UEFA",
                 "Netherlands":"UEFA","Belgium":"UEFA","Switzerland":"UEFA","Austria":"UEFA",
                 "Norway":"UEFA","Sweden":"UEFA","Croatia":"UEFA","Bosnia":"UEFA",
                 "Argentina":"CONMEBOL","Brazil":"CONMEBOL","Colombia":"CONMEBOL",
-                "Ecuador":"CONMEBOL","Paraguay":"CONMEBOL","Uruguay":"CONMEBOL",
+                "Ecuador":"CONMEBOL","Paraguay":"CONMEBOL",
                 "Morocco":"CAF","Senegal":"CAF","Egypt":"CAF","Ghana":"CAF",
-                "Ivory Coast":"CAF","South Africa":"CAF",
+                "Ivory Coast":"CAF","South Africa":"CAF","Cape Verde":"CAF",
                 "USA":"CONCACAF","Mexico":"CONCACAF","Canada":"CONCACAF",
-                "Japan":"AFC","Iran":"AFC","Uzbekistan":"AFC","Australia":"AFC",
-                "Cape Verde":"CAF",
-            }
-            df["Confed"] = df["Team"].map(conf_map).fillna("—")
-            conf_share = df.groupby("Confed")["Win %"].sum().sort_values(ascending=False)
-            st.bar_chart(conf_share, use_container_width=True)
+                "Japan":"AFC","Iran":"AFC","Uzbekistan":"AFC","Australia":"AFC"}
+            df["C"]=df["Team"].map(cm).fillna("—")
+            st.bar_chart(df.groupby("C")["Win%"].sum().sort_values(ascending=False),use_container_width=True)
 
-        st.session_state["gb_prob"]          = gb_prob
-        st.session_state["n_sims"]            = n_sims
-        st.session_state["last_win_counts"]   = win_counts
-        st.caption("👟 Switch to the Golden Boot tab for top scorer predictions · 🗺️ Map tab now shows live win % per team")
+        st.session_state.update({"gb_prob":gb_prob,"n_sims":n_sims,"last_wc":wc})
+        st.caption("👟 Golden Boot tab · 🗺️ Map tab updates with win %")
 
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 # TAB 2 — Golden Boot
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 with tab_gb:
-    st.subheader("🥇 Golden Boot — predicted top scorers")
+    st.subheader("👟 Golden Boot — predicted top scorers")
     if "gb_prob" not in st.session_state:
-        st.info("Run the tournament simulation first (📊 tab).")
+        st.info("Run simulation first (📊 tab).")
     else:
-        gb_prob = st.session_state["gb_prob"]
-        n_ran   = st.session_state["n_sims"]
-        gb_rows = [{"Player": p, "Team": _find_team(p), "Flag": _find_flag(p),
-                    "Golden Boot %": round(v * 100, 2)}
-                   for p, v in sorted(gb_prob.items(), key=lambda x: -x[1])
-                   if p != "Other"]
-        gb_df   = pd.DataFrame(gb_rows).head(20).reset_index(drop=True)
-        gb_df.insert(0, "Rank", gb_df.index + 1)
-
-        if gb_df.empty:
-            st.warning("No player goal data available.")
+        gbp  = st.session_state["gb_prob"]
+        nran = st.session_state["n_sims"]
+        rows = [{"Player":p,"Team":find_team(p),"Flag":find_flag(p),"GB%":round(v*100,2)}
+                for p,v in sorted(gbp.items(),key=lambda x:-x[1]) if p!="Other"]
+        gdf  = pd.DataFrame(rows).head(20).reset_index(drop=True)
+        gdf.insert(0,"#",gdf.index+1)
+        if gdf.empty:
+            st.warning("No player data.")
         else:
-            top_p = gb_df.iloc[0]
-            st.success(f"{top_p['Flag']} **{top_p['Player']}** ({top_p['Team']}) — "
-                       f"most likely Golden Boot ({top_p['Golden Boot %']:.1f}%)")
-            col_gt, col_gc = st.columns([3, 2], gap="large")
-            with col_gt:
+            t=gdf.iloc[0]
+            st.success(f"{t['Flag']} **{t['Player']}** ({t['Team']}) — Golden Boot {t['GB%']:.1f}%")
+            cl,cr = st.columns([3,2],gap="large")
+            with cl:
                 st.markdown("#### Top 20 contenders")
-                st.dataframe(
-                    gb_df[["Rank","Flag","Player","Team","Golden Boot %"]]
-                    .style.format({"Golden Boot %":"{:.2f}%"})
-                    .background_gradient(cmap="Oranges", subset=["Golden Boot %"]),
-                    use_container_width=True, hide_index=True)
-            with col_gc:
-                st.markdown("#### Top 10 probability")
-                st.bar_chart(gb_df.head(10).set_index("Player")[["Golden Boot %"]],
-                             use_container_width=True)
-            st.caption(f"Based on {n_ran:,} simulations. "
-                       f"Probability = proportional share of avg tournament goals. 'Other' excluded.")
+                st.dataframe(gdf[["#","Flag","Player","Team","GB%"]]
+                    .style.format({"GB%":"{:.2f}%"})
+                    .background_gradient(cmap="Oranges",subset=["GB%"]),
+                    use_container_width=True,hide_index=True)
+            with cr:
+                st.markdown("#### Top 10")
+                st.bar_chart(gdf.head(10).set_index("Player")[["GB%"]],use_container_width=True)
+            st.caption(f"{nran:,} sims · proportional share of avg tournament goals · 'Other' excluded")
 
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 # TAB 3 — Player Cards
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 with tab_cards:
-    st.subheader("🃏 FIFA Player Cards — 2026 World Cup")
-    st.caption("Ranked best to worst · EA FC 25 ratings (June 2026 patch) · Full 6-stat cards")
+    st.subheader("🃏 EA FC 25 Player Cards — WC 2026")
+    st.caption("June 2026 ratings · Gold 90+ · Gold 86–89 · Silver 82–85 · Bronze <82")
 
-    raw_cards: list = []
+    raw: list = []
     if use_api and api_key:
-        with st.spinner("Fetching player stats from API…"):
-            raw_cards = fetch_player_cards_from_api(api_key)
-        if raw_cards:
-            st.success(f"✅ {len(raw_cards)} players loaded from API")
-        else:
-            st.info("ℹ️ No API player data yet — using built-in EA FC 25 ratings.")
-    if not raw_cards:
-        raw_cards = list(PLAYER_CARDS_FALLBACK)
+        with st.spinner("Fetching from API…"):
+            raw = fetch_player_cards_api(api_key)
+        if raw: st.success(f"✅ {len(raw)} players from API")
+        else:   st.info("ℹ️ Using built-in ratings.")
+    if not raw: raw = list(PLAYER_CARDS_FALLBACK)
 
-    all_cards = [
-        {"name":r[0],"team":r[1],"pos":r[2],"overall":r[3],
-         "pace":r[4],"shooting":r[5],"passing":r[6],
-         "dribbling":r[7],"defending":r[8],"physical":r[9]}
-        for r in raw_cards
-    ]
-    all_cards.sort(key=lambda x: -x["overall"])
+    cards = [{"name":r[0],"team":r[1],"pos":r[2],"overall":r[3],
+              "pace":r[4],"shooting":r[5],"passing":r[6],
+              "dribbling":r[7],"defending":r[8],"physical":r[9]}
+             for r in raw]
+    cards.sort(key=lambda x:-x["overall"])
 
-    fc1, fc2, fc3 = st.columns([3, 2, 2])
-    with fc1:
-        team_opts   = ["All teams"] + sorted({c["team"] for c in all_cards})
-        filter_team = st.selectbox("Filter by team", team_opts, key="cards_team")
-    with fc2:
-        pos_opts    = ["All positions"] + sorted({c["pos"] for c in all_cards})
-        filter_pos  = st.selectbox("Filter by position", pos_opts, key="cards_pos")
-    with fc3:
-        min_ovr = st.slider("Min overall", 60, 94, 60, 1, key="cards_ovr")
+    f1,f2,f3,f4 = st.columns([3,2,2,2])
+    with f1: ft = st.selectbox("Team",["All"]+sorted({c["team"] for c in cards}),key="ct")
+    with f2: fp = st.selectbox("Pos", ["All"]+sorted({c["pos"] for c in cards}),key="cp")
+    with f3: fo = st.slider("Min OVR",60,94,60,1,key="co")
+    with f4: fc = st.selectbox("Sort",["Overall ↓","Overall ↑","Name"],key="cs")
 
-    filtered = [c for c in all_cards
-                if (filter_team == "All teams" or c["team"] == filter_team)
-                and (filter_pos == "All positions" or c["pos"] == filter_pos)
-                and c["overall"] >= min_ovr]
+    fil = [c for c in cards if (ft=="All" or c["team"]==ft)
+                              and (fp=="All" or c["pos"]==fp)
+                              and c["overall"]>=fo]
+    if fc=="Overall ↑": fil.sort(key=lambda x:x["overall"])
+    elif fc=="Name":    fil.sort(key=lambda x:x["name"])
 
-    st.caption(f"Showing **{len(filtered)}** players")
+    st.caption(f"**{len(fil)}** players · {len([c for c in fil if c['overall']>=90])} TOTY gold · "
+               f"{len([c for c in fil if 86<=c['overall']<90])} gold · "
+               f"{len([c for c in fil if 82<=c['overall']<86])} silver · "
+               f"{len([c for c in fil if c['overall']<82])} bronze")
 
-    CPR = 6
-    for row_start in range(0, len(filtered), CPR):
-        cols = st.columns(CPR)
-        for col, card in zip(cols, filtered[row_start:row_start + CPR]):
+    CPR=6
+    for i in range(0,len(fil),CPR):
+        cols=st.columns(CPR)
+        for col,card in zip(cols,fil[i:i+CPR]):
             with col:
-                st.markdown(render_player_card(card), unsafe_allow_html=True)
-                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                st.markdown(render_card(card),unsafe_allow_html=True)
+                st.markdown("<div style='height:6px'></div>",unsafe_allow_html=True)
+    if not fil: st.info("No players match filters.")
 
-    if not filtered:
-        st.info("No players match the current filters.")
-
-    st.divider()
-    st.caption("🥇 Gold (90+) · 🟡 Gold (86–89) · ⬜ Silver (82–85) · 🟫 Bronze (<82) · "
-               "Sub-stats from EA FC 25. API mode shows live WC ratings; sub-stats require built-in data.")
-
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 # TAB 4 — Head-to-head
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 with tab_h2h:
-    st.subheader("Head-to-head match probability")
-    st.caption("20,000-match simulation · Poisson model · historical penalty rates")
+    st.subheader("⚔️ Head-to-head")
+    st.caption("20,000-match Poisson simulation · historical penalty rates · xG model")
+    tns = sorted(TEAMS.keys())
+    ca,cvs,cb = st.columns([5,1,5])
+    with ca: ta = st.selectbox("Team A",tns,index=tns.index("France"),key="h2h_a")
+    with cvs: st.markdown("<br><br>**vs**",unsafe_allow_html=True)
+    with cb: tb = st.selectbox("Team B",tns,index=tns.index("Argentina"),key="h2h_b")
 
-    all_team_names = sorted(TEAMS.keys())
-    ca, cvs, cb = st.columns([5, 1, 5])
-    with ca:
-        team_a = st.selectbox("Team A", all_team_names,
-                              index=all_team_names.index("France"), key="h2h_a")
-    with cvs:
-        st.markdown("<br><br>vs", unsafe_allow_html=True)
-    with cb:
-        team_b = st.selectbox("Team B", all_team_names,
-                              index=all_team_names.index("Argentina"), key="h2h_b")
-
-    if st.button("▶  Calculate odds", type="primary", use_container_width=True, key="h2h_btn"):
-        if team_a == team_b:
-            st.warning("Pick two different teams.")
+    if st.button("▶ Calculate",type="primary",use_container_width=True,key="h2h_go"):
+        if ta==tb:
+            st.warning("Pick different teams.")
         else:
-            with st.spinner("Simulating 20,000 matches…"):
-                probs = h2h_win_prob(team_a, team_b)
-            xg_a, xg_b = expected_goals(team_a, team_b)
-            ta_flag = get_team(team_a)["flag"]
-            tb_flag = get_team(team_b)["flag"]
-            pen_a   = PENALTY_WIN_RATE.get(team_a, 0.50)
-            pen_b   = PENALTY_WIN_RATE.get(team_b, 0.50)
-            pen_tot = pen_a + pen_b
+            with st.spinner("Simulating…"):
+                pr = h2h(ta,tb)
+            xa,xb = xg(ta,tb)
+            fa=get_team(ta)["flag"]; fb=get_team(tb)["flag"]
+            pa=PENALTY_WIN_RATE.get(ta,.5); pb=PENALTY_WIN_RATE.get(tb,.5); pt=pa+pb
+            ea=get_team(ta)["elo"]; eb=get_team(tb)["elo"]
 
-            c1, c2, c3 = st.columns(3)
-            with c1: st.metric(f"{ta_flag} {team_a} win (90 min)", f"{probs['team_a']:.1f}%")
-            with c2: st.metric("Draw after 90 min",                 f"{probs['draw_90']:.1f}%")
-            with c3: st.metric(f"{tb_flag} {team_b} win (90 min)", f"{probs['team_b']:.1f}%")
+            # Dense 7-metric row
+            c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
+            c1.metric(f"{fa} Win 90'",f"{pr['team_a']:.1f}%")
+            c2.metric("Draw 90'",f"{pr['draw_90']:.1f}%")
+            c3.metric(f"{fb} Win 90'",f"{pr['team_b']:.1f}%")
+            c4.metric(f"{fa} xG",f"{xa:.2f}")
+            c5.metric(f"{fb} xG",f"{xb:.2f}")
+            c6.metric(f"{fa} Pen",f"{pa/pt*100:.0f}%")
+            c7.metric(f"{fb} Pen",f"{pb/pt*100:.0f}%")
 
+            # Elo + model data
             st.divider()
-            c4, c5, c6, c7 = st.columns(4)
-            with c4: st.metric(f"{ta_flag} xG/match",   f"{xg_a:.2f}")
-            with c5: st.metric(f"{tb_flag} xG/match",   f"{xg_b:.2f}")
-            with c6: st.metric(f"{ta_flag} Pen win %",  f"{pen_a/pen_tot*100:.0f}%")
-            with c7: st.metric(f"{tb_flag} Pen win %",  f"{pen_b/pen_tot*100:.0f}%")
+            d1,d2,d3,d4 = st.columns(4)
+            d1.metric(f"{fa} Elo",f"{ea:,}",f"{ea-eb:+,} vs opponent")
+            d2.metric(f"{fb} Elo",f"{eb:,}")
+            d3.metric("xG ratio",f"{xa/xb:.2f}:1" if xb>0 else "—")
+            d4.metric("Model margin",f"{pr['team_a']-pr['team_b']:+.1f}pp")
 
-            notes = []
-            ha_a = HOST_ADVANTAGE.get(team_a, 0)
-            ha_b = HOST_ADVANTAGE.get(team_b, 0)
-            ba   = TEAM_BOOST.get(team_a, 1.0)
-            bb   = TEAM_BOOST.get(team_b, 1.0)
-            if ha_a:     notes.append(f"{ta_flag} home +{ha_a*100:.0f}%")
-            if ha_b:     notes.append(f"{tb_flag} home +{ha_b*100:.0f}%")
-            if ba != 1.0: notes.append(f"{ta_flag} boost ×{ba:.2f}")
-            if bb != 1.0: notes.append(f"{tb_flag} boost ×{bb:.2f}")
-            if notes:
-                st.caption(" · ".join(notes))
-            st.caption("Win/draw % = 90 min only. Knockout draws go to extra time then penalties.")
+            notes=[]
+            if HOST_ADVANTAGE.get(ta,0): notes.append(f"{fa} home +{HOST_ADVANTAGE[ta]*100:.0f}%")
+            if HOST_ADVANTAGE.get(tb,0): notes.append(f"{fb} home +{HOST_ADVANTAGE[tb]*100:.0f}%")
+            if TEAM_BOOST.get(ta,1)!=1: notes.append(f"{fa} boost ×{TEAM_BOOST[ta]:.2f}")
+            if TEAM_BOOST.get(tb,1)!=1: notes.append(f"{fb} boost ×{TEAM_BOOST[tb]:.2f}")
+            if notes: st.caption(" · ".join(notes))
+            st.caption("Win/draw = 90 min. Knockout draws → extra time → penalties.")
 
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 5 — R32 Bracket (visual)
-# ════════════════════════════════════════════════════════════════════════════════
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 5 — R32 Bracket (live results)
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
+# TAB 5 — Bracket
+# ─────────────────────────────────────────────────────────────────────
 with tab_bracket:
-    st.subheader("🗓️ Round of 32 — Live Results")
+    st.subheader("🗓️ Round of 32 — Live Bracket")
 
-    # Fetch live results if API connected, else fall back to probability view
-    live_matches: list[dict] = []
-    results_debug = ""
+    live_ms:  list = []
+    res_debug = ""
     if use_api and api_key:
-        with st.spinner("Fetching live WC 2026 results…"):
-            live_matches, results_debug = fetch_wc2026_results(api_key, wc_league_id_found)
-        n_done = sum(1 for m in live_matches if m["status"] in {"FT","AET","PEN","AWD","WO"})
-        n_live = sum(1 for m in live_matches if m["status"] in {"1H","2H","HT","ET","BT","P","INT"})
-        cols_hdr = st.columns([2,2,2,3])
-        cols_hdr[0].metric("Matches played", n_done)
-        cols_hdr[1].metric("Live now", n_live)
-        cols_hdr[2].metric("Remaining", max(0, 16 - n_done))
-        cols_hdr[3].caption(f"⏱ Refreshes every 5 min · Last fetch included {len(live_matches)} fixtures")
-        if st.button("🔄 Refresh results now", key="refresh_bracket"):
-            fetch_wc2026_results.clear()
-            st.rerun()
+        with st.spinner("Fetching results…"):
+            live_ms, res_debug = fetch_wc_results(api_key, wc_lid)
+        fin_s = {"FT","AET","PEN","AWD","WO"}
+        live_s= {"1H","2H","HT","ET","BT","P","INT"}
+        n_done = sum(1 for m in live_ms if m["status"] in fin_s)
+        n_live = sum(1 for m in live_ms if m["status"] in live_s)
+        hc = st.columns(4)
+        hc[0].metric("Played",n_done)
+        hc[1].metric("Live",n_live)
+        hc[2].metric("Remaining",max(0,16-n_done))
+        hc[3].caption(f"Auto-refresh every 5 min · {len(live_ms)} total fixtures")
+        if st.button("🔄 Refresh now",key="ref_br"):
+            fetch_wc_results.clear(); st.rerun()
     else:
-        st.info("🔵 Connect API in sidebar for live scores. Showing win probabilities only.")
+        st.info("🔵 Connect API for live scores. Showing probabilities.")
 
     st.divider()
+    # Always build bracket — hardcoded results mean it works without API too
+    use_live  = True
+    bl        = build_live_bracket(live_ms)
+    fin_set   = {"FT","AET","PEN","AWD","WO"}
+    live_set  = {"1H","2H","HT","ET","BT","P","INT"}
 
-    # Build bracket — with real scores if available, else probability mode
-    use_live = bool(live_matches)
-    bracket_live = build_live_bracket(live_matches) if use_live else None
-
-    # Pre-compute probabilities for matches not yet played
     with st.spinner("Computing probabilities…"):
-        bracket_display = []
-        for i, (home, away, date) in enumerate(R32_BRACKET):
-            live_entry = bracket_live[i] if bracket_live else None
-            th = get_team(home)
-            ta = get_team(away) if away != "TBD" else {"flag":"🏳️","atk":1.2,"def":0.9,"elo":1600}
-
-            status  = live_entry["status"] if live_entry else "NS"
-            winner  = live_entry["winner"] if live_entry else None
-            gh      = live_entry["goals_home"] if live_entry else None
-            ga      = live_entry["goals_away"] if live_entry else None
-
-            # Only compute probs for unplayed matches
-            if away != "TBD" and status in ("NS", None) or not use_live:
-                probs = h2h_win_prob(home, away, n=10_000) if away != "TBD" else None
-                xg_h, xg_a = expected_goals(home, away) if away != "TBD" else (None, None)
-                ph = PENALTY_WIN_RATE.get(home, 0.5)
-                pa = PENALTY_WIN_RATE.get(away, 0.5)
-                pt = ph + pa
+        bd = []
+        for i,(home,away,date) in enumerate(R32_BRACKET):
+            le = bl[i]
+            status = le["status"]
+            winner = le["winner"]
+            gh     = le["goals_home"]
+            ga     = le["goals_away"]
+            if status in("NS",None):
+                pr   = h2h(home,away,n=10_000)
+                xa,xb= xg(home,away)
+                ph=PENALTY_WIN_RATE.get(home,.5); pa=PENALTY_WIN_RATE.get(away,.5); pt=ph+pa
             else:
-                probs = None
-                xg_h = xg_a = None
-                ph = PENALTY_WIN_RATE.get(home, 0.5)
-                pa = PENALTY_WIN_RATE.get(away, 0.5)
-                pt = ph + pa
+                pr=None; xa=xb=None
+                ph=PENALTY_WIN_RATE.get(home,.5); pa=PENALTY_WIN_RATE.get(away,.5); pt=ph+pa
+            bd.append({"home":home,"away":away,"date":date,
+                       "flag_h":BASE_TEAMS.get(home,{}).get("flag","🏳️"),
+                       "flag_a":BASE_TEAMS.get(away,{}).get("flag","🏳️"),
+                       "status":status,"winner":winner,"gh":gh,"ga":ga,
+                       "pr":pr,"xa":xa,"xb":xb,"ph":ph/pt*100,"pa":pa/pt*100})
 
-            bracket_display.append({
-                "home": home, "away": away, "date": date,
-                "flag_h": th["flag"],
-                "flag_a": ta["flag"] if away != "TBD" else "🏳️",
-                "status": status, "winner": winner,
-                "goals_home": gh, "goals_away": ga,
-                "probs": probs, "xg_h": xg_h, "xg_a": xg_a,
-                "pen_h": ph/pt*100, "pen_a": pa/pt*100,
-            })
-
-    def bracket_card(m: dict) -> str:
-        status   = m["status"]
-        winner   = m["winner"]
-        gh       = m["goals_home"]
-        ga       = m["goals_away"]
-        probs    = m["probs"]
-        finished = status in {"FT","AET","PEN","AWD","WO"}
-        is_live  = status in {"1H","2H","HT","ET","BT","P","INT"}
-
-        # Status badge
-        if finished:
-            status_badge = (
-                '<span style="background:#22c55e;color:#000;font-size:9px;'
-                'font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;">FT</span>'
-            )
-        elif is_live:
-            status_badge = (
-                '<span style="background:#ef4444;color:#fff;font-size:9px;'
-                'font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;'
-                'animation:pulse 1s infinite;">● LIVE</span>'
-            )
-        elif status == "TBD":
-            status_badge = '<span style="color:#555;font-size:9px;margin-left:6px;">TBD</span>'
+    def bcard(m: dict) -> str:
+        fin = m["status"] in fin_set; lv = m["status"] in live_set
+        if fin:
+            sb='<span style="background:#22c55e;color:#000;font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px;">FT</span>'
+        elif lv:
+            sb='<span style="background:#ef4444;color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px;">● LIVE</span>'
+        elif m["status"]=="TBD":
+            sb='<span style="color:#444;font-size:9px;">TBD</span>'
         else:
-            status_badge = f'<span style="color:#8888bb;font-size:9px;margin-left:6px;">{m["date"]}</span>'
+            sb=f'<span style="color:#555;font-size:9px;">{m["date"]}</span>'
 
-        # Colours based on match state
-        if finished and winner:
-            col_h = "#22c55e" if winner == m["home"] else "#f87171"
-            col_a = "#22c55e" if winner == m["away"] else "#f87171"
-            bg_h  = "rgba(34,197,94,0.08)"  if winner == m["home"] else "transparent"
-            bg_a  = "rgba(34,197,94,0.08)"  if winner == m["away"] else "transparent"
-        elif is_live:
-            col_h = col_a = "#facc15"
-            bg_h  = bg_a  = "transparent"
-        elif probs and m["away"] != "TBD":
-            close = abs(probs["team_a"] - probs["team_b"]) < 5
-            col_h = "#facc15" if close else ("#4ade80" if probs["team_a"] > probs["team_b"] else "#f87171")
-            col_a = "#facc15" if close else ("#4ade80" if probs["team_b"] > probs["team_a"] else "#f87171")
-            bg_h  = bg_a = "transparent"
+        if fin and m["winner"]:
+            ch="#22c55e"; ca="#f87171"
+            col_h=ch if m["winner"]==m["home"] else ca
+            col_a=ch if m["winner"]==m["away"] else ca
+            bg_h="rgba(34,197,94,0.07)" if m["winner"]==m["home"] else "transparent"
+            bg_a="rgba(34,197,94,0.07)" if m["winner"]==m["away"] else "transparent"
+        elif lv:
+            col_h=col_a="#facc15"; bg_h=bg_a="transparent"
+        elif m["pr"] and m["away"]!="TBD":
+            close=abs(m["pr"]["team_a"]-m["pr"]["team_b"])<5
+            col_h="#facc15" if close else ("#4ade80" if m["pr"]["team_a"]>m["pr"]["team_b"] else "#f87171")
+            col_a="#facc15" if close else ("#4ade80" if m["pr"]["team_b"]>m["pr"]["team_a"] else "#f87171")
+            bg_h=bg_a="transparent"
         else:
-            col_h = col_a = "#8888bb"
-            bg_h  = bg_a  = "transparent"
+            col_h=col_a="#555"; bg_h=bg_a="transparent"
 
-        # Score or probability display
-        if finished or is_live:
-            score_h = str(gh) if gh is not None else "?"
-            score_a = str(ga) if ga is not None else "?"
-            right_h = f'<span style="font-size:20px;font-weight:900;color:{col_h};min-width:24px;text-align:right;">{score_h}</span>'
-            right_a = f'<span style="font-size:20px;font-weight:900;color:{col_a};min-width:24px;text-align:right;">{score_a}</span>'
-            bar_section = ""
-            if status == "AET":
-                bar_section = '<div style="text-align:center;font-size:9px;color:#8888bb;margin:1px 0;">after extra time</div>'
-            elif status == "PEN":
-                bar_section = '<div style="text-align:center;font-size:9px;color:#8888bb;margin:1px 0;">after penalties</div>'
-        elif m["away"] == "TBD":
-            right_h = right_a = ""
-            bar_section = ""
-        elif probs:
-            right_h = f'<span style="font-size:12px;font-weight:800;color:{col_h};min-width:38px;text-align:right;">{probs["team_a"]:.1f}%</span>'
-            right_a = f'<span style="font-size:12px;font-weight:800;color:{col_a};min-width:38px;text-align:right;">{probs["team_b"]:.1f}%</span>'
-            bh = int(probs["team_a"]); bd = int(probs["draw_90"]); ba = int(probs["team_b"])
-            bar_section = (
-                '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden;margin:3px 0;gap:1px;">'
-                f'<div style="width:{bh}%;background:{col_h};"></div>'
-                f'<div style="width:{bd}%;background:#444;"></div>'
-                f'<div style="width:{ba}%;background:{col_a};"></div>'
-                '</div>'
-            )
+        if fin or lv:
+            sh=str(m["gh"]) if m["gh"] is not None else "?"
+            sa=str(m["ga"]) if m["ga"] is not None else "?"
+            rh=f'<span style="font-size:19px;font-weight:900;color:{col_h};">{sh}</span>'
+            ra=f'<span style="font-size:19px;font-weight:900;color:{col_a};">{sa}</span>'
+            bar=""
+            if m["status"]=="AET": bar='<div style="text-align:center;font-size:8px;color:#555;margin:1px 0;">AET</div>'
+            elif m["status"]=="PEN": bar='<div style="text-align:center;font-size:8px;color:#555;margin:1px 0;">penalties</div>'
+        elif m["away"]=="TBD":
+            rh=ra=bar=""
+        elif m["pr"]:
+            rh=f'<span style="font-size:11px;font-weight:800;color:{col_h};">{m["pr"]["team_a"]:.1f}%</span>'
+            ra=f'<span style="font-size:11px;font-weight:800;color:{col_a};">{m["pr"]["team_b"]:.1f}%</span>'
+            bh=int(m["pr"]["team_a"]); bd2=int(m["pr"]["draw_90"]); ba=int(m["pr"]["team_b"])
+            bar=(f'<div style="display:flex;height:3px;border-radius:2px;overflow:hidden;margin:2px 0;gap:1px;">'
+                 f'<div style="width:{bh}%;background:{col_h};"></div>'
+                 f'<div style="width:{bd2}%;background:#333;"></div>'
+                 f'<div style="width:{ba}%;background:{col_a};"></div></div>')
         else:
-            right_h = right_a = ""
-            bar_section = ""
+            rh=ra=bar=""
 
-        # Winner crown
-        crown_h = " 👑" if finished and winner == m["home"] else ""
-        crown_a = " 👑" if finished and winner == m["away"] else ""
+        ch_h=" 👑" if fin and m["winner"]==m["home"] else ""
+        ch_a=" 👑" if fin and m["winner"]==m["away"] else ""
+        xg_line=""
+        if not fin and not lv and m["xa"] is not None:
+            xg_line=(f'<div style="font-size:9px;color:#444;margin-top:1px;">'
+                     f'xG {m["flag_h"]}{m["xa"]:.2f} {m["flag_a"]}{m["xb"]:.2f}'
+                     f' · Pen {m["ph"]:.0f}%/{m["pa"]:.0f}%</div>')
+        return (f'<div style="border:1px solid #1e1e1e;border-radius:5px;padding:7px 9px;background:#161616;margin-bottom:5px;">'
+            f'<div style="margin-bottom:4px;">{sb}</div>'
+            f'<div style="display:flex;align-items:center;gap:5px;padding:2px 3px;background:{bg_h};border-radius:3px;margin-bottom:1px;">'
+            f'<span style="font-size:13px;">{m["flag_h"]}</span>'
+            f'<span style="flex:1;font-size:12px;font-weight:600;color:#ccc;">{m["home"]}{ch_h}</span>{rh}</div>'
+            +bar+
+            f'<div style="display:flex;align-items:center;gap:5px;padding:2px 3px;background:{bg_a};border-radius:3px;margin-top:1px;">'
+            f'<span style="font-size:13px;">{m["flag_a"]}</span>'
+            f'<span style="flex:1;font-size:12px;font-weight:600;color:#ccc;">{m["away"]}{ch_a}</span>{ra}</div>'
+            +xg_line+'</div>')
 
-        # xG line (only for unplayed)
-        xg_line = ""
-        if not finished and not is_live and m["xg_h"] is not None:
-            xg_line = (
-                f'<div style="font-size:10px;color:#6666aa;margin-top:2px;">'
-                f'xG: {m["flag_h"]} {m["xg_h"]:.2f} vs {m["flag_a"]} {m["xg_a"]:.2f}'
-                f' &nbsp;|&nbsp; Pen: {m["pen_h"]:.0f}% vs {m["pen_a"]:.0f}%'
-                f'</div>'
-            )
+    cl,cg,cr = st.columns([5,1,5])
+    with cl:
+        st.markdown("**Matches 1–8**")
+        st.markdown("".join(bcard(m) for m in bd[:8]),unsafe_allow_html=True)
+    with cg:
+        st.markdown('<div style="border-left:1px dashed #1e1e1e;height:100%;margin:0 auto;width:0;"></div>',unsafe_allow_html=True)
+    with cr:
+        st.markdown("**Matches 9–16**")
+        st.markdown("".join(bcard(m) for m in bd[8:]),unsafe_allow_html=True)
+    if res_debug:
+        with st.expander("🔍 Debug"):
+            st.code(res_debug)
+    st.caption("🟢 winner · 🔴 eliminated · % = win prob (unplayed) · 👑 advanced · All R32 results hardcoded from real tournament")
 
-        return (
-            '<div style="border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;'
-            'background:#181818;margin-bottom:6px;font-family:inherit;">'
-            f'<div style="display:flex;align-items:center;margin-bottom:5px;">'
-            f'{status_badge}'
+    # ── Round of 16 ───────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("### Round of 16")
+    st.caption("Jul 4–7 · Matches updating live via API when connected")
+
+    r16_cards_html = []
+    for home, away, date, gh, ga, status, winner in R16_FIXTURES:
+        fh = BASE_TEAMS.get(home, {}).get("flag", "🏳️")
+        fa = BASE_TEAMS.get(away, {}).get("flag", "🏳️")
+        fin = status in {"FT","AET","PEN"}
+        lv  = status in {"1H","2H","HT","ET","BT","P","INT"}
+
+        # Also check API for this match
+        for m in live_ms:
+            k1 = (m["home"].lower(), m["away"].lower())
+            k2 = (home.lower(), away.lower())
+            if k1 == k2 or (m["home"].lower()==away.lower() and m["away"].lower()==home.lower()):
+                if m["status"] in {"FT","AET","PEN","AWD","WO","1H","2H","HT","ET","BT","P","INT"}:
+                    gh = m["goals_home"]; ga = m["goals_away"]
+                    status = m["status"]; winner = m["winner"]
+                    fin = status in {"FT","AET","PEN","AWD","WO"}
+                    lv  = not fin and status != "NS"
+                    break
+
+        if fin:
+            sb = '<span style="background:#22c55e;color:#000;font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px;">FT</span>'
+            col_h = "#22c55e" if winner == home else "#f87171"
+            col_a = "#22c55e" if winner == away else "#f87171"
+            bg_h  = "rgba(34,197,94,0.07)" if winner == home else "transparent"
+            bg_a  = "rgba(34,197,94,0.07)" if winner == away else "transparent"
+            rh = f'<span style="font-size:19px;font-weight:900;color:{col_h};">{gh if gh is not None else "?"}</span>'
+            ra = f'<span style="font-size:19px;font-weight:900;color:{col_a};">{ga if ga is not None else "?"}</span>'
+            ch_h = " 👑" if winner == home else ""
+            ch_a = " 👑" if winner == away else ""
+        elif lv:
+            sb = '<span style="background:#ef4444;color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px;">● LIVE</span>'
+            col_h = col_a = "#facc15"; bg_h = bg_a = "transparent"
+            rh = f'<span style="font-size:19px;font-weight:900;color:#facc15;">{gh if gh is not None else "0"}</span>'
+            ra = f'<span style="font-size:19px;font-weight:900;color:#facc15;">{ga if ga is not None else "0"}</span>'
+            ch_h = ch_a = ""
+        else:
+            sb = f'<span style="color:#555;font-size:9px;">{date}</span>'
+            pr2 = h2h(home, away, n=8_000)
+            col_h = "#4ade80" if pr2["team_a"] > pr2["team_b"] else "#f87171"
+            col_a = "#4ade80" if pr2["team_b"] > pr2["team_a"] else "#f87171"
+            if abs(pr2["team_a"]-pr2["team_b"]) < 5: col_h = col_a = "#facc15"
+            bg_h = bg_a = "transparent"
+            rh = f'<span style="font-size:11px;font-weight:800;color:{col_h};">{pr2["team_a"]:.1f}%</span>'
+            ra = f'<span style="font-size:11px;font-weight:800;color:{col_a};">{pr2["team_b"]:.1f}%</span>'
+            ch_h = ch_a = ""
+
+        r16_cards_html.append(
+            f'<div style="border:1px solid #1e1e1e;border-radius:5px;padding:7px 9px;background:#161616;margin-bottom:5px;">'
+            f'<div style="margin-bottom:4px;">{sb}</div>'
+            f'<div style="display:flex;align-items:center;gap:5px;padding:2px 3px;background:{bg_h};border-radius:3px;margin-bottom:1px;">'
+            f'<span style="font-size:13px;">{fh}</span>'
+            f'<span style="flex:1;font-size:12px;font-weight:600;color:#ccc;">{home}{ch_h}</span>{rh}</div>'
+            f'<div style="display:flex;align-items:center;gap:5px;padding:2px 3px;background:{bg_a};border-radius:3px;">'
+            f'<span style="font-size:13px;">{fa}</span>'
+            f'<span style="flex:1;font-size:12px;font-weight:600;color:#ccc;">{away}{ch_a}</span>{ra}</div>'
             f'</div>'
-            f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;'
-            f'background:{bg_h};border-radius:4px;margin-bottom:2px;">'
-            f'<span style="font-size:14px;">{m["flag_h"]}</span>'
-            f'<span style="flex:1;font-size:13px;font-weight:600;color:#ddd;">{m["home"]}{crown_h}</span>'
-            f'{right_h}'
-            f'</div>'
-            + bar_section +
-            f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;'
-            f'background:{bg_a};border-radius:4px;margin-top:2px;">'
-            f'<span style="font-size:14px;">{m["flag_a"]}</span>'
-            f'<span style="flex:1;font-size:13px;font-weight:600;color:#ddd;">{m["away"]}{crown_a}</span>'
-            f'{right_a}'
-            f'</div>'
-            + xg_line +
-            '</div>'
         )
 
-    col_l, col_gap, col_r = st.columns([5, 1, 5])
-    with col_l:
-        st.markdown("**Matches 1–8**")
-        st.markdown("".join(bracket_card(m) for m in bracket_display[:8]),
-                    unsafe_allow_html=True)
-    with col_gap:
-        st.markdown(
-            '<div style="border-left:1px dashed #2a2a4a;height:100%;margin:0 auto;width:0;"></div>',
-            unsafe_allow_html=True)
-    with col_r:
-        st.markdown("**Matches 9–16**")
-        st.markdown("".join(bracket_card(m) for m in bracket_display[8:]),
-                    unsafe_allow_html=True)
+    # Display R16 in 2 rows of 4
+    r16_c1, r16_gap, r16_c2 = st.columns([5,1,5])
+    with r16_c1:
+        st.markdown("**Matches 1–4**")
+        st.markdown("".join(r16_cards_html[:4]), unsafe_allow_html=True)
+    with r16_gap:
+        st.markdown('<div style="border-left:1px dashed #1e1e1e;height:100%;margin:0 auto;width:0;"></div>', unsafe_allow_html=True)
+    with r16_c2:
+        st.markdown("**Matches 5–8**")
+        st.markdown("".join(r16_cards_html[4:]), unsafe_allow_html=True)
 
-    if results_debug:
-        with st.expander("🔍 Results fetch debug"):
-            st.code(results_debug)
-
-    st.caption("🟢 = winner · 🔴 = eliminated · Win % shown for unplayed matches · 👑 = advanced")
-
-# ════════════════════════════════════════════════════════════════════════════════
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 6 — Team Map
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
+# TAB 6 — Map
+# ─────────────────────────────────────────────────────────────────────
 with tab_map:
-    st.subheader("🗺️ 2026 World Cup — Team Map")
-    st.caption("All 32 qualified nations · Click a team for full stats · Win probabilities from last simulation run")
+    st.subheader("🗺️ Team Map — 2026 World Cup")
+    st.caption("All 32 nations · dot size = Elo · click for full stats")
 
-    # Team coordinates (capital/major city lat/lng)
-    TEAM_COORDS = {
-        "Argentina":   (-34.6, -58.4), "Australia":   (-33.9, 151.2),
-        "Austria":     (48.2,  16.4),  "Belgium":     (50.8,  4.4),
-        "Bosnia":      (43.8,  18.4),  "Brazil":      (-15.8, -47.9),
-        "Canada":      (45.4,  -75.7), "Cape Verde":  (14.9,  -23.5),
-        "Colombia":    (4.7,   -74.1), "Croatia":     (45.8,  15.9),
-        "Ecuador":     (-0.2,  -78.5), "Egypt":       (30.1,  31.2),
-        "England":     (51.5,  -0.1),  "France":      (48.9,  2.3),
-        "Germany":     (52.5,  13.4),  "Ghana":       (5.6,   -0.2),
-        "Iran":        (35.7,  51.4),  "Ivory Coast": (5.3,   -4.0),
-        "Japan":       (35.7,  139.7), "Mexico":      (19.4,  -99.1),
-        "Morocco":     (34.0,  -6.8),  "Netherlands": (52.4,  4.9),
-        "Norway":      (59.9,  10.7),  "Paraguay":    (-25.3, -57.6),
-        "Portugal":    (38.7,  -9.1),  "Senegal":     (14.7,  -17.4),
-        "South Africa":(25.7,  28.2),  "Spain":       (40.4,  -3.7),
-        "Sweden":      (59.3,  18.1),  "Switzerland": (46.9,  7.4),
-        "USA":         (38.9,  -77.0), "Uzbekistan":  (41.3,  69.2),
+    COORDS = {
+        "Argentina":(-34.6,-58.4),"Australia":(-33.9,151.2),"Austria":(48.2,16.4),
+        "Belgium":(50.8,4.4),"Bosnia":(43.8,18.4),"Brazil":(-15.8,-47.9),
+        "Canada":(45.4,-75.7),"Cape Verde":(14.9,-23.5),"Colombia":(4.7,-74.1),
+        "Croatia":(45.8,15.9),"Ecuador":(-0.2,-78.5),"Egypt":(30.1,31.2),
+        "England":(51.5,-0.1),"France":(48.9,2.3),"Germany":(52.5,13.4),
+        "Ghana":(5.6,-0.2),"Iran":(35.7,51.4),"Ivory Coast":(5.3,-4.0),
+        "Japan":(35.7,139.7),"Mexico":(19.4,-99.1),"Morocco":(34.0,-6.8),
+        "Netherlands":(52.4,4.9),"Norway":(59.9,10.7),"Paraguay":(-25.3,-57.6),
+        "Portugal":(38.7,-9.1),"Senegal":(14.7,-17.4),"South Africa":(-25.7,28.2),
+        "Spain":(40.4,-3.7),"Sweden":(59.3,18.1),"Switzerland":(46.9,7.4),
+        "USA":(38.9,-77.0),"Uzbekistan":(41.3,69.2),
     }
+    win_data={}
+    if "last_wc" in st.session_state:
+        wc=st.session_state["last_wc"]; n=st.session_state.get("n_sims",1)
+        win_data={t:round(c/n*100,1) for t,c in wc.items()}
 
-    # Build map data with win probabilities if simulation has been run
-    gb_probs = st.session_state.get("gb_prob", {})
-    win_data = {}
-    if "last_win_counts" in st.session_state:
-        wc = st.session_state["last_win_counts"]
-        n  = st.session_state.get("n_sims", 1)
-        win_data = {t: round(c/n*100, 1) for t, c in wc.items()}
+    mrows=[]
+    for team,(lat,lon) in COORDS.items():
+        td=BASE_TEAMS.get(team,{}); flag=td.get("flag","🏳️")
+        top2=[p for p,_ in FALLBACK_SQUADS.get(team,[])[:2] if p!="Other"]
+        mrows.append({"team":team,"flag":flag,"lat":lat,"lon":lon,
+                      "elo":td.get("elo",0),"atk":td.get("atk",0),"def":td.get("def",0),
+                      "win_pct":win_data.get(team),"pen_r":PENALTY_WIN_RATE.get(team,.5),
+                      "top_players":", ".join(top2)})
+    dfm=pd.DataFrame(mrows)
 
-    map_rows = []
-    for team, (lat, lon) in TEAM_COORDS.items():
-        td   = BASE_TEAMS.get(team, {})
-        flag = td.get("flag", "🏳️")
-        elo  = td.get("elo", 0)
-        atk  = td.get("atk", 0)
-        dfn  = td.get("def", 0)
-        win_pct = win_data.get(team, None)
-        pen_r   = PENALTY_WIN_RATE.get(team, 0.5)
-        # Top players for this team
-        players = FALLBACK_SQUADS.get(team, [])
-        top2    = [p for p, _ in players[:2] if p != "Other"]
-        map_rows.append({
-            "team": team, "flag": flag, "lat": lat, "lon": lon,
-            "elo": elo, "atk": atk, "def": dfn,
-            "win_pct": win_pct, "pen_r": pen_r,
-            "top_players": ", ".join(top2),
-        })
-
-    df_map = pd.DataFrame(map_rows)
-
-    # Render interactive map using st.map with size encoding by Elo
-    # Use pydeck-style via st.map for simplicity, with a custom HTML map for full interactivity
-    map_html = """
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
+    map_html = """<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-  body { margin:0; background:#111; font-family: system-ui, sans-serif; }
-  #map { width:100%; height:560px; }
-  .leaflet-container { background:#111 !important; }
-  .info-panel {
-    position:absolute; top:10px; right:10px; z-index:1000;
-    background:#1a1a1a; border:1px solid #333; border-radius:6px;
-    padding:14px; min-width:200px; max-width:240px; color:#ddd;
-    display:none; font-size:13px;
-  }
-  .info-panel.visible { display:block; }
-  .info-flag { font-size:30px; text-align:center; }
-  .info-name { font-size:15px; font-weight:700; text-align:center; color:#fff; margin:4px 0 8px; }
-  .stat-row { display:flex; justify-content:space-between; padding:3px 0;
-               border-bottom:1px solid #222; font-size:12px; }
-  .stat-label { color:#666; }
-  .stat-val   { color:#ddd; font-weight:600; }
-  .win-bar    { height:4px; border-radius:2px; background:#222; margin:6px 0; }
-  .win-fill   { height:4px; border-radius:2px; background:#eee; }
+body{margin:0;background:#111;font-family:system-ui,sans-serif;}
+#map{width:100%;height:540px;}
+.leaflet-container{background:#111 !important;}
+.panel{position:absolute;top:10px;right:10px;z-index:1000;background:#161616;
+       border:1px solid #1e1e1e;border-radius:5px;padding:12px;min-width:195px;
+       max-width:230px;color:#ccc;display:none;font-size:12px;}
+.panel.vis{display:block;}
+.pf{font-size:28px;text-align:center;}
+.pn{font-size:14px;font-weight:700;text-align:center;color:#ddd;margin:3px 0 7px;}
+.sr{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e1e1e;}
+.sl{color:#555;}.sv{color:#ccc;font-weight:600;}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-</head>
-<body>
-<div id="map"></div>
-<div class="info-panel" id="info"></div>
+</head><body>
+<div id="map"></div><div class="panel" id="panel"></div>
 <script>
-const teams = """ + df_map.to_json(orient="records") + """;
-
-const map = L.map('map', {
-  center: [20, 10], zoom: 2,
-  minZoom: 1, maxZoom: 6,
-  zoomControl: true,
-});
-
-// Dark tile layer
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '©OpenStreetMap ©CartoDB',
-  subdomains: 'abcd', maxZoom: 19
-}).addTo(map);
-
-const maxElo = Math.max(...teams.map(t => t.elo));
-const minElo = Math.min(...teams.map(t => t.elo));
-
-teams.forEach(t => {
-  const norm = (t.elo - minElo) / (maxElo - minElo);
-  const r    = 8 + norm * 14;
-  // Color by Elo: gold for top, silver mid, bronze low
-  const col  = norm > 0.7 ? '#ffffff' : norm > 0.4 ? '#aaaaaa' : '#666666';
-
-  const circle = L.circleMarker([t.lat, t.lon], {
-    radius: r, fillColor: col, color: '#0d0d1a',
-    weight: 2, opacity: 1, fillOpacity: 0.85
-  }).addTo(map);
-
-  // Tooltip with flag
-  circle.bindTooltip(t.flag + ' ' + t.team, {
-    permanent: false, direction: 'top',
-    className: 'leaflet-tooltip',
-    offset: [0, -r]
-  });
-
-  circle.on('click', () => {
-    const panel = document.getElementById('info');
-    panel.innerHTML = `
-      <div class="info-flag">${t.flag}</div>
-      <div class="info-name">${t.team}</div>
-      <div class="stat-row"><span class="stat-label">Elo</span><span class="stat-val">${t.elo.toLocaleString()}</span></div>
-      <div class="stat-row"><span class="stat-label">Attack</span><span class="stat-val">${t.atk.toFixed(2)}</span></div>
-      <div class="stat-row"><span class="stat-label">Defense</span><span class="stat-val">${t.def.toFixed(2)}</span></div>
-      <div class="stat-row"><span class="stat-label">Pen rate</span><span class="stat-val">${(t.pen_r*100).toFixed(0)}%</span></div>
-      <div class="stat-row"><span class="stat-label">Key players</span><span class="stat-val" style="text-align:right;max-width:130px;font-size:11px;">${t.top_players||'—'}</span></div>
-      ${t.win_pct !== null ? `<div class="stat-row"><span class="stat-label">Win chance</span><span class="stat-val">${t.win_pct.toFixed(1)}%</span></div>` : ''}
-    `;
-    panel.classList.add('visible');
+const T=""" + dfm.to_json(orient="records") + """;
+const map=L.map('map',{center:[20,10],zoom:2,minZoom:1,maxZoom:6});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  {attribution:'©OSM ©CartoDB',subdomains:'abcd',maxZoom:19}).addTo(map);
+const maxE=Math.max(...T.map(t=>t.elo)),minE=Math.min(...T.map(t=>t.elo));
+T.forEach(t=>{
+  const n=(t.elo-minE)/(maxE-minE),r=7+n*13;
+  const col=n>0.7?'#dddddd':n>0.4?'#888888':'#444444';
+  const c=L.circleMarker([t.lat,t.lon],{radius:r,fillColor:col,color:'#0d0d0d',weight:1.5,fillOpacity:0.9}).addTo(map);
+  c.bindTooltip(t.flag+' '+t.team,{permanent:false,direction:'top',offset:[0,-r]});
+  c.on('click',()=>{
+    const p=document.getElementById('panel');
+    const w=t.win_pct!==null?`<div class="sr"><span class="sl">Win %</span><span class="sv">${t.win_pct.toFixed(1)}%</span></div>`:'';
+    p.innerHTML=`<div class="pf">${t.flag}</div><div class="pn">${t.team}</div>
+      <div class="sr"><span class="sl">Elo</span><span class="sv">${t.elo.toLocaleString()}</span></div>
+      <div class="sr"><span class="sl">Attack λ</span><span class="sv">${t.atk.toFixed(2)}</span></div>
+      <div class="sr"><span class="sl">Defense ×</span><span class="sv">${t.def.toFixed(2)}</span></div>
+      <div class="sr"><span class="sl">Pen rate</span><span class="sv">${(t.pen_r*100).toFixed(0)}%</span></div>
+      <div class="sr"><span class="sl">Stars</span><span class="sv" style="font-size:10px;text-align:right;max-width:120px">${t.top_players||'—'}</span></div>
+      ${w}`;
+    p.classList.add('vis');
   });
 });
+map.on('click',()=>document.getElementById('panel').classList.remove('vis'));
+</script></body></html>"""
 
-map.on('click', (e) => {
-  if (!e.originalEvent.target.closest) return;
-  document.getElementById('info').classList.remove('visible');
-});
-</script>
-</body>
-</html>
-"""
-    st.components.v1.html(map_html, height=600, scrolling=False)
-
+    st.components.v1.html(map_html, height=560, scrolling=False)
     st.divider()
-    # Dense team stats table below map
     st.markdown("#### All 32 teams — ranked by Elo")
-    tbl_rows = []
-    for _, row in df_map.sort_values("elo", ascending=False).iterrows():
-        tbl_rows.append({
-            "": row["flag"],
-            "Team":      row["team"],
-            "Elo":       int(row["elo"]),
-            "Atk λ":     round(row["atk"], 2),
-            "Def mult":  round(row["def"], 2),
-            "Pen %":     f"{row['pen_r']*100:.0f}%",
-            "Win % *":   f"{row['win_pct']:.1f}%" if row["win_pct"] is not None else "—",
-            "Key players": row["top_players"],
-        })
-    tbl_df = pd.DataFrame(tbl_rows).reset_index(drop=True)
-    tbl_df.insert(0, "#", range(1, len(tbl_df)+1))
-    st.dataframe(tbl_df, use_container_width=True, hide_index=True)
-    st.caption("* Win % requires running the simulation first (📊 tab)")
+    tbl=[]
+    for _,row in dfm.sort_values("elo",ascending=False).iterrows():
+        tbl.append({"":row["flag"],"Team":row["team"],"Elo":int(row["elo"]),
+                    "Atk":round(row["atk"],2),"Def":round(row["def"],2),
+                    "Pen%":f"{row['pen_r']*100:.0f}%",
+                    "Win%":f"{row['win_pct']:.1f}%" if row["win_pct"] is not None else "—",
+                    "Stars":row["top_players"]})
+    tdf=pd.DataFrame(tbl).reset_index(drop=True)
+    tdf.insert(0,"#",range(1,len(tdf)+1))
+    st.dataframe(tdf,use_container_width=True,hide_index=True)
+    st.caption("Win% updates after running simulation (📊 tab)")
 
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 7 — WC History
-# ════════════════════════════════════════════════════════════════════════════════
-with tab_history:
-    st.subheader("🏆 FIFA World Cup — Complete History (1930–2022)")
-    st.caption("All 22 tournaments · Host · Winner · Runner-up · Score · Top scorer · Attendance")
+# ─────────────────────────────────────────────────────────────────────
+# TAB 7 — History
+# ─────────────────────────────────────────────────────────────────────
+with tab_hist:
+    st.subheader("🏆 FIFA World Cup — Complete History 1930–2022")
 
-    WC_HISTORY = [
-        (1930,"Uruguay",     "🇺🇾","Uruguay",     "🇺🇾","Argentina",   "🇦🇷","4–2","G. Stábile (ARG) 8",   434000),
-        (1934,"Italy",       "🇮🇹","Italy",       "🇮🇹","Czechoslovakia","🇨🇿","2–1","O. Schiavio (ITA) 4",  363000),
-        (1938,"France",      "🇫🇷","Italy",       "🇮🇹","Hungary",     "🇭🇺","4–2","L. Zsengellér (HUN) 7",375000),
-        (1950,"Brazil",      "🇧🇷","Uruguay",     "🇺🇾","Brazil",      "🇧🇷","2–1","A. Ademir (BRA) 9",    1045000),
-        (1954,"Switzerland", "🇨🇭","West Germany","🇩🇪","Hungary",     "🇭🇺","3–2","S. Morlock (GER) 6",   768000),
-        (1958,"Sweden",      "🇸🇪","Brazil",      "🇧🇷","Sweden",      "🇸🇪","5–2","Just Fontaine (FRA) 13",868000),
-        (1962,"Chile",       "🇨🇱","Brazil",      "🇧🇷","Czechoslovakia","🇨🇿","3–1","V. Masek (TCH) 4",    893000),
-        (1966,"England",     "🏴󠁧󠁢󠁥󠁮󠁧󠁿","England",     "🏴󠁧󠁢󠁥󠁮󠁧󠁿","West Germany","🇩🇪","4–2","E. Hurst (ENG) 4",   1614677),
-        (1970,"Mexico",      "🇲🇽","Brazil",      "🇧🇷","Italy",       "🇮🇹","4–1","G. Müller (GER) 10",  1604065),
-        (1974,"West Germany","🇩🇪","West Germany","🇩🇪","Netherlands", "🇳🇱","2–1","G. Müller (GER) 4",   1865762),
-        (1978,"Argentina",   "🇦🇷","Argentina",   "🇦🇷","Netherlands", "🇳🇱","3–1","M. Kempes (ARG) 6",   1545791),
-        (1982,"Spain",       "🇪🇸","Italy",       "🇮🇹","West Germany","🇩🇪","3–1","P. Rossi (ITA) 6",    2109723),
-        (1986,"Mexico",      "🇲🇽","Argentina",   "🇦🇷","West Germany","🇩🇪","3–2","G. Lineker (ENG) 6",  2394031),
-        (1990,"Italy",       "🇮🇹","West Germany","🇩🇪","Argentina",   "🇦🇷","1–0","S. Schillaci (ITA) 6",2517348),
-        (1994,"USA",         "🇺🇸","Brazil",      "🇧🇷","Italy",       "🇮🇹","0–0 (3–2p)","H. Stoichkov (BUL) 6",3587538),
-        (1998,"France",      "🇫🇷","France",      "🇫🇷","Brazil",      "🇧🇷","3–0","D. Batistuta (ARG) 6",2785100),
-        (2002,"Korea/Japan", "🇰🇷🇯🇵","Brazil",   "🇧🇷","Germany",     "🇩🇪","2–0","R. Ronaldo (BRA) 8",  2705197),
-        (2006,"Germany",     "🇩🇪","Italy",       "🇮🇹","France",      "🇫🇷","1–1 (5–3p)","M. Klose (GER) 5",3359439),
-        (2010,"South Africa","🇿🇦","Spain",       "🇪🇸","Netherlands", "🇳🇱","1–0","T. Müller (GER) 5",   3178856),
-        (2014,"Brazil",      "🇧🇷","Germany",     "🇩🇪","Argentina",   "🇦🇷","1–0","J. Rodríguez (COL) 6",3429873),
-        (2018,"Russia",      "🇷🇺","France",      "🇫🇷","Croatia",     "🇭🇷","4–2","H. Kane (ENG) 6",     3031768),
-        (2022,"Qatar",       "🇶🇦","Argentina",   "🇦🇷","France",      "🇫🇷","3–3 (4–2p)","K. Mbappé (FRA) 8",3404252),
-    ]
+    wc_cnt = Counter(r[3] for r in WC_HISTORY)
+    top5   = wc_cnt.most_common(5)
+    mc = st.columns(5)
+    for col,(nation,wins) in zip(mc,top5):
+        flag=next((r[4] for r in WC_HISTORY if r[3]==nation),"")
+        col.metric(f"{flag} {nation}",f"{wins} titles")
 
-    # ── Summary stats ──────────────────────────────────────────────────────────
-    from collections import Counter
-    winner_counts = Counter(row[3] for row in WC_HISTORY)
-    top5_winners  = winner_counts.most_common(5)
-
-    m1,m2,m3,m4,m5 = st.columns(5)
-    for col, (nation, wins) in zip([m1,m2,m3,m4,m5], top5_winners):
-        flag = next((row[4] for row in WC_HISTORY if row[3]==nation), "")
-        col.metric(f"{flag} {nation}", f"{wins} titles")
+    # Dense extra stats row
+    st.divider()
+    s1,s2,s3,s4,s5 = st.columns(5)
+    s1.metric("Total editions","22")
+    s2.metric("Most goals in final","10 (1954 3–2 still record)")
+    s3.metric("All-time top scorer","Just Fontaine 13 (1958)")
+    s4.metric("Highest attendance",f"{max(r[10] for r in WC_HISTORY):,}")
+    s5.metric("Host wins",sum(1 for r in WC_HISTORY if r[3]==r[1]))
 
     st.divider()
-
-    # ── Filter controls ────────────────────────────────────────────────────────
-    fc1, fc2 = st.columns([3,2])
+    fc1,fc2=st.columns([3,2])
     with fc1:
-        filter_team = st.selectbox("Filter by team (winner or runner-up)",
-                                   ["All"] + sorted({r[3] for r in WC_HISTORY} | {r[5] for r in WC_HISTORY}),
-                                   key="hist_team")
+        filt=st.selectbox("Filter by team",["All"]+sorted({r[3] for r in WC_HISTORY}|{r[5] for r in WC_HISTORY}),key="hf")
     with fc2:
-        view_mode = st.radio("View", ["Table", "Timeline"], horizontal=True, key="hist_view")
+        vm=st.radio("View",["Table","Timeline"],horizontal=True,key="hv")
 
-    rows_filtered = [r for r in WC_HISTORY
-                     if filter_team == "All" or r[3] == filter_team or r[5] == filter_team]
+    rows_f=[r for r in WC_HISTORY if filt=="All" or r[3]==filt or r[5]==filt]
 
-    if view_mode == "Table":
-        hist_df = pd.DataFrame(rows_filtered, columns=[
-            "Year","Host","Host 🏳️","Winner","🏆","Runner-up","🥈",
-            "Final score","Top scorer","Attendance"
-        ])
-        display_df = hist_df[["Year","Host 🏳️","Host","🏆","Winner","🥈","Runner-up","Final score","Top scorer","Attendance"]].copy()
-        # Keep Attendance numeric so gradient works, format display with comma separator
-        st.dataframe(
-            display_df.style
-              .background_gradient(cmap="YlOrBr", subset=["Attendance"])
-              .format({"Attendance": "{:,}"}),
-            use_container_width=True, hide_index=True
-        )
+    if vm=="Table":
+        hdf=pd.DataFrame(rows_f,columns=["Year","Host","HF","Winner","WF","Runner-up","RF","Score","Top scorer","Goals","Attendance"])
+        ddf=hdf[["Year","HF","Host","WF","Winner","RF","Runner-up","Score","Top scorer","Goals","Attendance"]].copy()
+        st.dataframe(ddf.style.background_gradient(cmap="YlOrBr",subset=["Attendance"])
+                     .format({"Attendance":"{:,}"}),use_container_width=True,hide_index=True)
     else:
-        # Timeline visual
-        timeline_html = '<div style="font-family:Segoe UI,sans-serif;padding:8px;">'
-        for row in reversed(rows_filtered):
-            yr, host, hflag, winner, wflag, runup, rflag, score, scorer, att = row
-            is_host_win = winner == host
-            badge = '🏠' if is_host_win else ''
-            timeline_html += (
-                '<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;'
-                'padding:10px;background:#181818;border:1px solid #222;border-radius:6px;">'
-                f'<div style="min-width:44px;text-align:center;">'
-                f'<div style="font-size:16px;font-weight:800;color:#ddd;">{yr}</div>'
-                f'<div style="font-size:11px;color:#555;">{hflag}</div>'
-                f'</div>'
-                '<div style="flex:1;">'
-                f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
-                f'<span style="font-size:18px;">{wflag}</span>'
-                f'<span style="font-size:14px;font-weight:700;color:#eee;">{winner}</span>'
-                f'<span style="background:#333;color:#aaa;font-size:10px;'
-                f'padding:1px 6px;border-radius:4px;">winner {badge}</span>'
-                f'</div>'
-                f'<div style="font-size:12px;color:#666;margin-bottom:2px;">'
-                f'vs {rflag} {runup} &nbsp;·&nbsp; '
-                f'<span style="color:#aaa;">{score}</span>'
-                f'</div>'
-                f'<div style="font-size:11px;color:#555;">⚽ {scorer}</div>'
-                f'<div style="font-size:11px;color:#444;">🏟 {att:,} · {host}</div>'
-                '</div>'
-                '</div>'
-            )
-        timeline_html += '</div>'
-        st.markdown(timeline_html, unsafe_allow_html=True)
+        tl='<div style="font-family:inherit;">'
+        for r in reversed(rows_f):
+            yr,host,hf,winner,wf,runup,rf,score,scorer,goals,att=r
+            hw=winner==host
+            tl+=(f'<div style="display:flex;gap:10px;margin-bottom:8px;padding:9px;'
+                 f'background:#161616;border:1px solid #1e1e1e;border-radius:5px;">'
+                 f'<div style="min-width:40px;text-align:center;">'
+                 f'<div style="font-size:14px;font-weight:800;color:#ccc;">{yr}</div>'
+                 f'<div style="font-size:10px;color:#444;">{hf}</div></div>'
+                 f'<div style="flex:1;">'
+                 f'<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">'
+                 f'<span style="font-size:16px;">{wf}</span>'
+                 f'<span style="font-size:13px;font-weight:700;color:#ddd;">{winner}</span>'
+                 f'{"<span style=background:#222;color:#888;font-size:9px;padding:1px 5px;border-radius:3px;>🏠 host</span>" if hw else ""}'
+                 f'</div>'
+                 f'<div style="font-size:11px;color:#555;margin-bottom:1px;">'
+                 f'vs {rf} {runup} · <span style="color:#888;">{score}</span></div>'
+                 f'<div style="font-size:10px;color:#444;">⚽ {scorer} ({goals} goals) · 🏟 {att:,} · {host}</div>'
+                 f'</div></div>')
+        tl+='</div>'
+        st.markdown(tl,unsafe_allow_html=True)
 
     st.divider()
-    # Win count bar chart
-    st.markdown("#### 🏆 All-time World Cup winners")
-    wc_chart = pd.DataFrame(winner_counts.most_common(), columns=["Country","Titles"])
-    st.bar_chart(wc_chart.set_index("Country"), use_container_width=True, color="#ffd700")
+    st.markdown("#### All-time titles")
+    wcc=pd.DataFrame(wc_cnt.most_common(),columns=["Country","Titles"])
+    st.bar_chart(wcc.set_index("Country"),use_container_width=True)
 
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 8 — Model explainer
-# ════════════════════════════════════════════════════════════════════════════════
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
+# TAB 8 — Model
+# ─────────────────────────────────────────────────────────────────────
 with tab_model:
-    if use_api and api_key and n_matches_used > 0:
-        st.success(f"🟢 Live ratings active — {n_matches_used} international matches (last 2 years).")
+    if use_api and api_key and n_matches_used>0:
+        st.success(f"🟢 Live ratings — {n_matches_used} matches")
     else:
-        st.info("🔵 Built-in ratings (June 2026). Add an API key in the sidebar for live data.")
+        st.info("🔵 Built-in ratings (June 2026)")
 
-    st.subheader("How the model works")
-
-    with st.expander("Poisson goal model", expanded=True):
+    with st.expander("Poisson goal model",expanded=True):
         st.markdown("""
-**Goals are drawn from a Poisson distribution each match.**
 ```
 xG_A = attack_A × defense_B × (1 + home_boost_A) × manual_boost_A
 xG_B = attack_B × defense_A × (1 + home_boost_B) × manual_boost_B
 ```
-Draws → 30-min extra time (33% xG) → historical penalty shootout rates.
-
-Home advantage is **per-host-nation** and adjustable via sidebar sliders.
+Goals ~ Poisson(xG). Draw → 30-min ET (33% xG) → historical penalty rates.
 """)
-
-    with st.expander("Team & player data"):
+    with st.expander("Team ratings"):
+        edf=pd.DataFrame([{"Flag":v["flag"],"Team":k,"Atk":v["atk"],"Def":v["def"],
+                            "Boost":TEAM_BOOST.get(k,1.0),"Elo":v["elo"]}
+                          for k,v in sorted(TEAMS.items(),key=lambda x:-x[1]["elo"])])
+        st.dataframe(edf.style.format({"Atk":"{:.3f}","Def":"{:.3f}","Boost":"{:.2f}×","Elo":"{:,}"}),
+                     use_container_width=True,hide_index=True)
+    with st.expander("Penalty shootout rates"):
+        pdf=pd.DataFrame([{"Flag":get_team(t)["flag"],"Team":t,"Win rate":f"{r*100:.0f}%"}
+                          for t,r in sorted(PENALTY_WIN_RATE.items(),key=lambda x:-x[1]) if t in TEAMS])
+        st.dataframe(pdf,use_container_width=True,hide_index=True)
+        st.caption("WC + major continental tournaments through 2024")
+    with st.expander("vs professional models"):
         st.markdown("""
-**Team ratings** are calibrated from 2024–2026 international results and World Football Elo.
-Attack (λ) = expected goals vs average opponent. Defense = multiplier on opponent attack.
-
-**Player cards** use EA FC 25 ratings (June 2026 patch). When API is connected, overall
-ratings come from live WC 2026 match performance (match ratings × 10).
-
-**Squad goal shares** are based on 2025–2026 international and club goal records.
-""")
-
-    with st.expander("Historical penalty rates"):
-        pen_df = pd.DataFrame([
-            {"Flag": get_team(t)["flag"], "Team": t, "Win rate": f"{r*100:.0f}%"}
-            for t, r in sorted(PENALTY_WIN_RATE.items(), key=lambda x: -x[1])
-            if t in TEAMS
-        ])
-        st.dataframe(pen_df, use_container_width=True, hide_index=True)
-        st.caption("Source: all World Cup + major continental tournaments through 2024.")
-
-    with st.expander("Current team ratings"):
-        elo_df = pd.DataFrame([
-            {"Flag": v["flag"], "Team": k, "Atk λ": v["atk"],
-             "Def mult": v["def"], "Boost": TEAM_BOOST.get(k, 1.0), "Elo": v["elo"]}
-            for k, v in sorted(TEAMS.items(), key=lambda x: -x[1]["elo"])
-        ])
-        st.dataframe(
-            elo_df.style.format({"Atk λ":"{:.3f}","Def mult":"{:.3f}","Boost":"{:.2f}x","Elo":"{:,}"}),
-            use_container_width=True, hide_index=True)
-
-    with st.expander("What a pro model adds"):
-        st.markdown("""
-| Feature | This model | Pro model |
+|Feature|This|Pro|
 |---|---|---|
-| Goal distribution | Poisson ✅ | Poisson/neg-binomial ✅ |
-| Team ratings | Live API + recency weighting ✅ | MLE on 10k+ matches |
-| Home advantage | Per-host-nation, adjustable ✅ | Per-stadium + crowd |
-| Manual boost | Any team ✅ | Automated |
-| Injuries/squad news | Not included | Live feeds |
-| Penalties | Historical win rates ✅ | Player-level records |
-| Golden Boot | Goal-share weighted ✅ | Shot-level xG per player |
-| Bracket | Real 2026 WC ✅ | Real 2026 WC ✅ |
+|Goal dist|Poisson ✅|Poisson/neg-binomial|
+|Ratings|Live API + recency ✅|MLE on 10k+ matches|
+|Home adv|Per-host adjustable ✅|Per-stadium + crowd|
+|Manual boost|Any team ✅|Automated|
+|Injuries|Not included|Live feeds|
+|Penalties|Historical rates ✅|Player-level records|
+|Golden Boot|Goal-share model ✅|Shot-level xG|
 """)
 
-# ════════════════════════════════════════════════════════════════════════════════
-# TAB 7 — API Status
-# ════════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
+# TAB 9 — API Status
+# ─────────────────────────────────────────────────────────────────────
 with tab_api:
-    st.subheader("🔌 API Status — Live diagnostics")
-    st.caption("Every step of the API connection is shown here with pass/fail and detail.")
-
+    st.subheader("🔌 API Status")
     if not use_api or not api_key:
-        st.info("Enable the live API checkbox and enter your API key in the sidebar to see diagnostics here.")
+        st.info("Enable API and add key in sidebar.")
     else:
-        # Summary status cards
-        all_ok = all(icon == "✅" for icon, _, _ in api_status_log)
-        if all_ok:
-            st.success("✅ All API checks passed — live data is active.")
-        else:
-            any_ok = any(icon == "✅" for icon, _, _ in api_status_log)
-            if any_ok:
-                st.warning("⚠️ API partially working — some data is live, some is built-in.")
-            else:
-                st.error("❌ API not returning data — all built-in data is being used.")
+        ok_all = all(i=="✅" for i,_,_ in api_log)
+        ok_any = any(i=="✅" for i,_,_ in api_log)
+        if ok_all:   st.success("✅ All checks passed")
+        elif ok_any: st.warning("⚠️ Partially working")
+        else:        st.error("❌ No live data")
 
         st.divider()
-        st.markdown("### Step-by-step results")
-        for icon, label, detail in api_status_log:
-            col_icon, col_body = st.columns([1, 10])
-            with col_icon:
-                st.markdown(f"## {icon}")
-            with col_body:
+        for icon,label,detail in api_log:
+            ci,cb=st.columns([1,10])
+            with ci: st.markdown(f"## {icon}")
+            with cb:
                 st.markdown(f"**{label}**")
-                # First line as caption, rest in expander if multi-line
-                lines = detail.strip().split("\n")
+                lines=detail.strip().split("\n")
                 st.caption(lines[0])
-                if len(lines) > 1:
-                    with st.expander("Full detail"):
-                        st.code("\n".join(lines[1:]))
+                if len(lines)>1:
+                    with st.expander("Detail"): st.code("\n".join(lines[1:]))
 
         st.divider()
-        st.markdown("### League ID discovery log")
-        st.code(league_debug_log if league_debug_log else "Not run yet — enable API above.")
+        with st.expander("League ID discovery log"):
+            st.code(league_debug or "Not run")
+        with st.expander("Scorer fetch log"):
+            st.code(scorer_debug or "Not run")
 
         st.divider()
-        st.markdown("### Scorer fetch log")
-        st.code(scorer_debug_log if scorer_debug_log else "Not run yet — enable API above.")
-
-        st.divider()
-        st.markdown("### What to do if scorers return 0")
-        st.markdown("""
-**Check these in order:**
-
-1. **Verify the league ID** — look at the League ID discovery log above. If it says "Could not auto-detect", your API plan may not have the 2026 World Cup indexed yet. Try manually testing this URL in your browser (replace `YOUR_KEY`):
-   ```
-   https://v3.football.api-sports.io/leagues?name=FIFA+World+Cup&season=2026&X-RapidAPI-Key=YOUR_KEY
-   ```
-
-2. **Check your API plan** — free plans on api-football.com often exclude player statistics and live World Cup data. You need at least the **Starter** plan for player stats.
-
-3. **Check requests remaining** — the connection step above shows `Requests today: X/Y`. If you're at the limit, all calls return empty.
-
-4. **Tournament timing** — if matches are still in the group stage, `/topscorers` may not be populated yet. Strategy 3 (fixture events) should still work once matches have finished.
-
-5. **Copy this URL and test it directly** in your browser with your key as the header — if it returns data there but not here, it's a caching issue (click the refresh button in the sidebar to clear cache):
-   ```
-   https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT
-   ```
+        st.markdown("""**If scorers return 0:**
+1. Check league ID discovery log — if `league_id=1` wasn't confirmed, your plan may not include WC 2026
+2. Free plans exclude player stats — need at least **Starter** plan
+3. Check requests: `X/Y` shown in connection step — if at limit all calls return empty
+4. Early in tournament `/topscorers` may be empty — Strategy 3 (fixture events) covers this once matches finish
 """)
-
-        if st.button("🔄 Clear API cache and retry", key="clear_cache"):
-            fetch_live_data.clear()
-            fetch_recent_international_results.clear()
-            discover_wc2026_league_id.clear()
-            fetch_wc2026_top_scorers.clear()
-            fetch_player_cards_from_api.clear()
-            st.success("Cache cleared — reload the page to re-fetch all data.")
+        if st.button("🔄 Clear cache + retry",key="clr"):
+            for fn in [fetch_live_data,fetch_recent_results,discover_league_id,
+                       fetch_top_scorers,fetch_wc_results,fetch_player_cards_api]:
+                fn.clear()
+            st.success("Cleared — reload page to re-fetch.")
             st.rerun()
