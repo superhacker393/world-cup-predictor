@@ -1155,8 +1155,7 @@ with tab_sim:
             st.markdown("#### Full field — championship %")
             st.dataframe(
                 df[["#","Flag","Team","Elo","Wins","Win%"]]
-                .style.format({"Win%":"{:.2f}%","Elo":"{:,}","Wins":"{:,}"})
-                .background_gradient(cmap="Greens",subset=["Win%"]),
+                .style.format({"Win%":"{:.2f}%","Elo":"{:,}","Wins":"{:,}"}),
                 use_container_width=True,hide_index=True,height=430)
         with cr:
             st.markdown("#### Top 12")
@@ -1200,8 +1199,7 @@ with tab_gb:
             with cl:
                 st.markdown("#### Top 20 contenders")
                 st.dataframe(gdf[["#","Flag","Player","Team","GB%"]]
-                    .style.format({"GB%":"{:.2f}%"})
-                    .background_gradient(cmap="Oranges",subset=["GB%"]),
+                    .style.format({"GB%":"{:.2f}%"}),
                     use_container_width=True,hide_index=True)
             with cr:
                 st.markdown("#### Top 10")
@@ -1658,8 +1656,7 @@ with tab_hist:
     if vm=="Table":
         hdf=pd.DataFrame(rows_f,columns=["Year","Host","HF","Winner","WF","Runner-up","RF","Score","Top scorer","Goals","Attendance"])
         ddf=hdf[["Year","HF","Host","WF","Winner","RF","Runner-up","Score","Top scorer","Goals","Attendance"]].copy()
-        st.dataframe(ddf.style.background_gradient(cmap="YlOrBr",subset=["Attendance"])
-                     .format({"Attendance":"{:,}"}),use_container_width=True,hide_index=True)
+        st.dataframe(ddf.style.format({"Attendance":"{:,}"}),use_container_width=True,hide_index=True)
     else:
         tl='<div style="font-family:inherit;">'
         for r in reversed(rows_f):
