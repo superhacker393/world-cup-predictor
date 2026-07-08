@@ -610,9 +610,9 @@ def fetch_top_scorers(key: str, lid: int) -> tuple:
     debug.append(f"S1 /topscorers: {len(resp)} entries")
     tg1: dict = defaultdict(list)
     for e in resp:
-        p=e.get("player") or {}; st=((e.get("statistics") or [{}])[0])
-        nm=p.get("name",""); g=int((st.get("goals") or {}).get("total") or 0)
-        tm=API_NAME_MAP.get((st.get("team") or {}).get("name",""))
+        p=e.get("player") or {}; stats=((e.get("statistics") or [{}])[0])
+        nm=p.get("name",""); g=int((stats.get("goals") or {}).get("total") or 0)
+        tm=API_NAME_MAP.get((stats.get("team") or {}).get("name",""))
         if tm and nm and g>0: tg1[tm].append((nm,g))
     if tg1:
         debug.append(f"✅ S1 success: {len(tg1)} teams")
@@ -630,9 +630,9 @@ def fetch_top_scorers(key: str, lid: int) -> tuple:
     debug.append(f"S2 /players: {len(r2)} entries over {pages} pages")
     tg2: dict = defaultdict(list)
     for e in r2:
-        p=e.get("player") or {}; st=((e.get("statistics") or [{}])[0])
-        nm=p.get("name",""); g=int((st.get("goals") or {}).get("total") or 0)
-        tm=API_NAME_MAP.get((st.get("team") or {}).get("name",""))
+        p=e.get("player") or {}; stats=((e.get("statistics") or [{}])[0])
+        nm=p.get("name",""); g=int((stats.get("goals") or {}).get("total") or 0)
+        tm=API_NAME_MAP.get((stats.get("team") or {}).get("name",""))
         if tm and nm and g>0: tg2[tm].append((nm,g))
     if tg2:
         debug.append(f"✅ S2 success: {len(tg2)} teams")
@@ -754,11 +754,11 @@ def fetch_player_cards_api(key: str) -> list:
     pm  = {"Goalkeeper":"GK","Defender":"CB","Midfielder":"CM","Attacker":"ST"}
     out = []
     for e in resp:
-        p=e.get("player") or {}; st=((e.get("statistics") or [{}])[0])
-        nm=p.get("name",""); tm=API_NAME_MAP.get((st.get("team") or {}).get("name",""))
+        p=e.get("player") or {}; stats=((e.get("statistics") or [{}])[0])
+        nm=p.get("name",""); tm=API_NAME_MAP.get((stats.get("team") or {}).get("name",""))
         if not tm or not nm: continue
-        pos=pm.get((st.get("games") or {}).get("position","Midfielder"),"CM")
-        try: ovr=max(60,min(99,round(float((st.get("games") or {}).get("rating") or 0)*10))) if (st.get("games") or {}).get("rating") else 75
+        pos=pm.get((stats.get("games") or {}).get("position","Midfielder"),"CM")
+        try: ovr=max(60,min(99,round(float((stats.get("games") or {}).get("rating") or 0)*10))) if (stats.get("games") or {}).get("rating") else 75
         except: ovr=75
         out.append((nm,tm,pos,ovr,0,0,0,0,0,0))
     return out
@@ -982,6 +982,15 @@ def sim_tournament_fast(rng: np.random.Generator) -> tuple:
 
     return sur[0], dict(pg)
 
+def find_team(player: str) -> str:
+    for t, ps in SQUADS.items():
+        if any(nm == player for nm, _ in ps):
+            return t
+    return "—"
+
+def find_flag(player: str) -> str:
+    return TEAMS.get(find_team(player), {}).get("flag", "")
+
 @st.cache_data(show_spinner=False)
 def run_sims(n: int, seed: int, thash: str) -> tuple:
     rng = np.random.default_rng(seed)
@@ -1177,7 +1186,7 @@ with tab_gb:
         st.info("Run simulation first (📊 tab).")
     else:
         gbp  = st.session_state["gb_prob"]
-        nran = st.session_state["n_sims"]
+        nran = st.session_state.get("n_sims", 100_000)
         rows = [{"Player":p,"Team":find_team(p),"Flag":find_flag(p),"GB%":round(v*100,2)}
                 for p,v in sorted(gbp.items(),key=lambda x:-x[1]) if p!="Other"]
         gdf  = pd.DataFrame(rows).head(20).reset_index(drop=True)
