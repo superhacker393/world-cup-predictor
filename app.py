@@ -145,10 +145,11 @@ WC2026_SEASON    = 2026
 # Format: (home, away, date, goals_home, goals_away, status, winner)
 # status: FT=90min, AET=after extra time, PEN=after penalties
 R32_RESULTS = [
+    # (home, away, date, goals_home, goals_away, status, winner)
     ("South Africa","Canada",     "Jun 28", 0, 1, "FT",  "Canada"),
     ("Brazil",      "Japan",      "Jun 29", 2, 1, "FT",  "Brazil"),
-    ("Germany",     "Paraguay",   "Jun 29", 1, 1, "PEN", "Paraguay"),   # Paraguay 4-3 on pens
-    ("Netherlands", "Morocco",    "Jun 29", 1, 1, "PEN", "Morocco"),    # Morocco 3-2 on pens
+    ("Germany",     "Paraguay",   "Jun 29", 1, 1, "PEN", "Paraguay"),  # 4-3 pens
+    ("Netherlands", "Morocco",    "Jun 29", 1, 1, "PEN", "Morocco"),   # 3-2 pens
     ("Norway",      "Ivory Coast","Jun 30", 2, 1, "FT",  "Norway"),
     ("France",      "Sweden",     "Jun 30", 3, 0, "FT",  "France"),
     ("Mexico",      "Ecuador",    "Jun 30", 2, 0, "FT",  "Mexico"),
@@ -158,21 +159,34 @@ R32_RESULTS = [
     ("Spain",       "Austria",    "Jul 2",  3, 0, "FT",  "Spain"),
     ("Portugal",    "Croatia",    "Jul 2",  2, 1, "FT",  "Portugal"),
     ("Switzerland", "Algeria",    "Jul 2",  2, 0, "FT",  "Switzerland"),
-    ("Australia",   "Egypt",      "Jul 3",  1, 1, "PEN", "Egypt"),      # Egypt 4-2 on pens
+    ("Australia",   "Egypt",      "Jul 3",  1, 1, "PEN", "Egypt"),     # 4-2 pens
     ("Argentina",   "Cape Verde", "Jul 3",  3, 2, "AET", "Argentina"),
     ("Colombia",    "Ghana",      "Jul 3",  1, 0, "FT",  "Colombia"),
 ]
 
-# ── Round of 16 fixtures (Jul 4-7, some in progress/upcoming as of Jul 5) ─────
 R16_FIXTURES = [
-    ("Morocco",      "Canada",      "Jul 4",  3, 0, "FT",  "Morocco"),    # completed
-    ("France",       "Paraguay",    "Jul 4",  None, None, "FT", "France"), # France won, score TBC
-    ("Brazil",       "Norway",      "Jul 5",  None, None, "NS", None),     # today 4pm ET
-    ("Mexico",       "England",     "Jul 5",  None, None, "NS", None),     # today 8pm ET
-    ("Portugal",     "Spain",       "Jul 6",  None, None, "NS", None),
-    ("Belgium",      "USA",         "Jul 6",  None, None, "NS", None),
-    ("Egypt",        "Argentina",   "Jul 7",  None, None, "NS", None),
-    ("Switzerland",  "Colombia",    "Jul 7",  None, None, "NS", None),
+    # All 8 Round of 16 matches — all completed Jul 4-7
+    ("Morocco",     "Canada",      "Jul 4",  3, 0, "FT",  "Morocco"),
+    ("France",      "Paraguay",    "Jul 4",  1, 0, "FT",  "France"),
+    ("Norway",      "Brazil",      "Jul 5",  2, 0, "FT",  "Norway"),   # UPSET: Haaland stuns Brazil
+    ("England",     "Mexico",      "Jul 5",  3, 2, "FT",  "England"),
+    ("Spain",       "Portugal",    "Jul 6",  1, 0, "FT",  "Spain"),    # Merino sub winner AET
+    ("Belgium",     "USA",         "Jul 6",  4, 1, "FT",  "Belgium"),
+    ("Argentina",   "Egypt",       "Jul 7",  3, 2, "FT",  "Argentina"),# epic comeback from 0-2
+    ("Switzerland", "Colombia",    "Jul 7",  0, 0, "PEN", "Switzerland"), # 4-3 pens
+]
+
+QF_FIXTURES = [
+    # Quarterfinals — Jul 9-11, all upcoming as of Jul 9
+    ("France",      "Morocco",     "Jul 9",  None, None, "NS", None),
+    ("Spain",       "Belgium",     "Jul 10", None, None, "NS", None),
+    ("Norway",      "England",     "Jul 11", None, None, "NS", None),
+    ("Argentina",   "Switzerland", "Jul 11", None, None, "NS", None),
+]
+
+SF_FIXTURES = [
+    ("TBD",         "TBD",         "Jul 14", None, None, "NS", None),
+    ("TBD",         "TBD",         "Jul 15", None, None, "NS", None),
 ]
 
 R32_BRACKET = [
@@ -193,6 +207,12 @@ R32_BRACKET = [
     ("Argentina",   "Cape Verde", "Jul 3"),
     ("Colombia",    "Ghana",      "Jul 3"),
 ]
+
+# Teams still alive in tournament (for simulation — eliminates already-out teams)
+TEAMS_REMAINING = {
+    "Morocco", "France", "Norway", "England",
+    "Spain", "Belgium", "Argentina", "Switzerland"
+}
 
 # ── Player cards (EA FC 25, June 2026 patch) ──────────────────────────────────
 # (name, team, pos, overall, pace, shooting, passing, dribbling, defending, physical)
@@ -557,36 +577,29 @@ def compute_ratings(results: list) -> dict:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def discover_league_id(key: str) -> tuple:
+    """WC 2026 on API-Football is league=1 season=2026 (confirmed in API docs)."""
     debug = []
-    for name in ["FIFA World Cup","World Cup"]:
-        data = api_get(f"https://v3.football.api-sports.io/leagues?name={name.replace(' ','+')}&season=2026", key)
-        resp = (data or {}).get("response") or []
-        debug.append(f"Search '{name}': {len(resp)} results")
-        for item in resp:
-            lg = (item.get("league") or {}); lid = lg.get("id")
-            debug.append(f"  id={lid} name={lg.get('name','')}")
-            if lid: return lid, "\n".join(debug)
-    for s in [2026,2025]:
-        data = api_get(f"https://v3.football.api-sports.io/leagues?id=1&season={s}", key)
-        resp = (data or {}).get("response") or []
-        debug.append(f"id=1 season={s}: {len(resp)} results")
-        if resp: return 1, "\n".join(debug)
-    data = api_get("https://v3.football.api-sports.io/leagues?type=Cup&season=2026", key)
-    resp = (data or {}).get("response") or []
-    debug.append(f"All Cup leagues 2026: {len(resp)}")
-    for item in resp:
-        lg = (item.get("league") or {}); nm = lg.get("name","").lower(); lid = lg.get("id")
-        debug.append(f"  id={lid} name={lg.get('name','')}")
-        if "world" in nm and lid: return lid, "\n".join(debug)
-    data = api_get("https://v3.football.api-sports.io/leagues?current=true", key)
-    resp = (data or {}).get("response") or []
-    debug.append(f"All current leagues: {len(resp)}")
-    for item in resp:
-        lg = (item.get("league") or {}); nm = lg.get("name","").lower(); lid = lg.get("id")
-        if "world" in nm or "fifa" in nm:
-            debug.append(f"  CANDIDATE id={lid} name={lg.get('name','')}")
-    debug.append("Fallback: league_id=1")
-    return 1, "\n".join(debug)
+    data = api_get('https://v3.football.api-sports.io/leagues?id=1&season=2026', key)
+    resp = (data or {}).get('response') or []
+    debug.append(f'Verify league=1 season=2026: {len(resp)} results')
+    if resp:
+        nm = (resp[0].get('league') or {}).get('name','?')
+        debug.append(f'Confirmed: id=1 = {nm!r}')
+        return 1, chr(10).join(debug)
+    for name in ['FIFA World Cup', 'World Cup']:
+        url = 'https://v3.football.api-sports.io/leagues?name=' + name.replace(' ','+') + '&season=2026'
+        for item in (api_get(url, key) or {}).get('response') or []:
+            lid = (item.get('league') or {}).get('id')
+            nm  = (item.get('league') or {}).get('name','')
+            debug.append(f'  Name search: id={lid} name={nm}')
+            if lid: return lid, chr(10).join(debug)
+    for item in ((api_get('https://v3.football.api-sports.io/leagues?type=Cup&season=2026', key) or {}).get('response') or []):
+        lg = item.get('league') or {}
+        if 'world' in lg.get('name','').lower() and lg.get('id'):
+            debug.append(f"Cup scan: id={lg['id']} name={lg['name']}")
+            return lg['id'], chr(10).join(debug)
+    debug.append('Could not verify - using league_id=1 (correct per API-Football docs)')
+    return 1, chr(10).join(debug)
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_top_scorers(key: str, lid: int) -> tuple:
@@ -894,89 +907,93 @@ def h2h_cached(a: str, b: str, thash: str) -> dict:
     return h2h(a, b)
 
 @st.cache_data(show_spinner=False)
-def bracket_probs_cached(thash: str) -> list:
+def bracket_probs_cached(thash: str) -> dict:
     """
-    Pre-compute all R32 and R16 match probabilities in one go.
-    Returns list of dicts keyed by (home, away).
-    Only computed for unplayed matches; finished ones return None.
+    Pre-compute win probs + predicted scores for all unplayed matches.
+    Covers R32, R16, QF. Returns {(home, away): {probs + score}}.
+    Runs in milliseconds using closed-form Poisson — safe to call on every render.
     """
     results = {}
-    all_matches = list(R32_BRACKET) + [(h, a, d) for h, a, d, *_ in R16_FIXTURES]
-    for home, away, date in all_matches:
-        # Check if already finished
-        finished = any(
-            (r[0]==home and r[1]==away and r[6] is not None)
-            or (r[1]==home and r[0]==away and r[6] is not None)
-            for r in R32_RESULTS
+    # All matches across all rounds
+    all_matches = (
+        [(h, a) for h, a, _ in R32_BRACKET] +
+        [(h, a) for h, a, d, *_ in R16_FIXTURES] +
+        [(h, a) for h, a, d, *_ in QF_FIXTURES]
+    )
+    # Collect all known winners
+    done_winners = set()
+    for r in R32_RESULTS:
+        if r[6]: done_winners.add(r[6])
+    for f in R16_FIXTURES:
+        if f[6]: done_winners.add(f[6])
+    for f in QF_FIXTURES:
+        if f[6]: done_winners.add(f[6])
+
+    for home, away in all_matches:
+        if away in ("TBD", None): continue
+        # Skip if this match is already finished (both teams have known results)
+        is_finished = any(
+            (r[0]==home and r[1]==away and r[6] is not None) or
+            (r[1]==home and r[0]==away and r[6] is not None)
+            for r in list(R32_RESULTS) + list(R16_FIXTURES) + list(QF_FIXTURES)
         )
-        r16_finished = any(
-            (f[0]==home and f[1]==away and f[6] is not None)
-            or (f[1]==home and f[0]==away and f[6] is not None)
-            for f in R16_FIXTURES
-        )
-        if not finished and not r16_finished and away not in ("TBD",):
-            results[(home, away)] = h2h(home, away)
-            results[(home, away)]["score"] = predict_score(home, away)
+        if not is_finished:
+            pr = h2h(home, away)
+            pr["score"] = predict_score(home, away)
+            results[(home, away)] = pr
     return results
 
 def sim_tournament_fast(rng: np.random.Generator) -> tuple:
-    """Vectorised tournament — uses numpy RNG for speed."""
-    sur: list = []
-    pg: dict  = defaultdict(int)
+    """
+    Simulate from current state. R32 and R16 winners are known —
+    simulate only from the QF onwards using real bracket.
+    """
+    pg: dict = defaultdict(int)
 
-    for home, away, _ in R32_BRACKET:
-        if away == "TBD":
-            sur.append(home)
-            continue
-        # Check if real result known
-        real = next((r for r in R32_RESULTS
-                     if (r[0]==home and r[1]==away) or (r[1]==home and r[0]==away)), None)
-        if real:
-            sur.append(real[6])   # use real winner
-            continue
-        xa, xb = xg(home, away)
-        ga = int(rng.poisson(xa)); gb = int(rng.poisson(xb))
-        if ga == gb:
-            ga += int(rng.poisson(xa * .33)); gb += int(rng.poisson(xb * .33))
-            if ga == gb:
-                p_a = PENALTY_WIN_RATE.get(home, .5); p_b = PENALTY_WIN_RATE.get(away, .5)
-                w = home if rng.random() < p_a / (p_a + p_b) else away
-            else:
-                w = home if ga > gb else away
+    # QF bracket is fixed — simulate from here
+    # France vs Morocco, Spain vs Belgium, Norway vs England, Argentina vs Switzerland
+    qf_survivors = []
+    for home, away, date, gh, ga, status, winner in QF_FIXTURES:
+        if winner is not None:
+            qf_survivors.append(winner)
         else:
-            w = home if ga > gb else away
-        # Distribute goals to players
-        for team, n_g in ((home, ga), (away, gb)):
-            players = SQUADS.get(team, [("Other", 1.0)])
-            names   = [p[0] for p in players]
-            wts     = np.array([p[1] for p in players], dtype=float); wts /= wts.sum()
-            for _ in range(n_g):
-                pg[names[int(rng.choice(len(names), p=wts))]] += 1
-        sur.append(w)
+            xa, xb = xg(home, away)
+            ga_s = int(rng.poisson(xa)); gb_s = int(rng.poisson(xb))
+            if ga_s == gb_s:
+                ga_s += int(rng.poisson(xa*.33)); gb_s += int(rng.poisson(xb*.33))
+                if ga_s == gb_s:
+                    p_a=PENALTY_WIN_RATE.get(home,.5); p_b=PENALTY_WIN_RATE.get(away,.5)
+                    w = home if rng.random() < p_a/(p_a+p_b) else away
+                else:
+                    w = home if ga_s > gb_s else away
+            else:
+                w = home if ga_s > gb_s else away
+            for team, n_g in ((home, ga_s),(away, gb_s)):
+                players=SQUADS.get(team,[("Other",1.0)]); names=[p[0] for p in players]
+                wts=np.array([p[1] for p in players],dtype=float); wts/=wts.sum()
+                for _ in range(n_g): pg[names[int(rng.choice(len(names),p=wts))]] += 1
+            qf_survivors.append(w)
 
+    # Simulate remaining rounds (SF + Final)
+    sur = qf_survivors
     while len(sur) > 1:
         nxt = []
         for i in range(0, len(sur), 2):
-            if i + 1 >= len(sur):
-                nxt.append(sur[i]); continue
+            if i+1 >= len(sur): nxt.append(sur[i]); continue
             a, b = sur[i], sur[i+1]
             xa, xb = xg(a, b)
-            ga = int(rng.poisson(xa)); gb = int(rng.poisson(xb))
-            if ga == gb:
-                ga += int(rng.poisson(xa * .33)); gb += int(rng.poisson(xb * .33))
-                if ga == gb:
-                    p_a = PENALTY_WIN_RATE.get(a, .5); p_b = PENALTY_WIN_RATE.get(b, .5)
-                    w = a if rng.random() < p_a / (p_a + p_b) else b
-                else:
-                    w = a if ga > gb else b
-            else:
-                w = a if ga > gb else b
-            for team, n_g in ((a, ga), (b, gb)):
-                players = SQUADS.get(team, [("Other", 1.0)])
-                names   = [p[0] for p in players]
-                wts     = np.array([p[1] for p in players], dtype=float); wts /= wts.sum()
-                for _ in range(n_g):
-                    pg[names[int(rng.choice(len(names), p=wts))]] += 1
+            ga_s=int(rng.poisson(xa)); gb_s=int(rng.poisson(xb))
+            if ga_s==gb_s:
+                ga_s+=int(rng.poisson(xa*.33)); gb_s+=int(rng.poisson(xb*.33))
+                if ga_s==gb_s:
+                    p_a=PENALTY_WIN_RATE.get(a,.5); p_b=PENALTY_WIN_RATE.get(b,.5)
+                    w=a if rng.random()<p_a/(p_a+p_b) else b
+                else: w=a if ga_s>gb_s else b
+            else: w=a if ga_s>gb_s else b
+            for team,n_g in ((a,ga_s),(b,gb_s)):
+                players=SQUADS.get(team,[("Other",1.0)]); names=[p[0] for p in players]
+                wts=np.array([p[1] for p in players],dtype=float); wts/=wts.sum()
+                for _ in range(n_g): pg[names[int(rng.choice(len(names),p=wts))]] += 1
             nxt.append(w)
         sur = nxt
 
@@ -1526,6 +1543,99 @@ with tab_bracket:
     with r16_c2:
         st.markdown("**Matches 5–8**")
         st.markdown("".join(r16_cards_html[4:]), unsafe_allow_html=True)
+
+    # ── Quarterfinals ─────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("### 🏆 Quarterfinals")
+    st.caption("Jul 9–11 · All matches in the United States")
+
+    qf_html = []
+    for home, away, date, gh, ga, status, winner in QF_FIXTURES:
+        fh = BASE_TEAMS.get(home, {}).get("flag", "🏳️")
+        fa = BASE_TEAMS.get(away, {}).get("flag", "🏳️")
+        fin  = status in {"FT","AET","PEN"}
+        lv   = status in {"1H","2H","HT","ET","BT","P","INT"}
+
+        # Check API for live update
+        for m in live_ms:
+            if ((m["home"].lower()==home.lower() and m["away"].lower()==away.lower()) or
+                (m["home"].lower()==away.lower() and m["away"].lower()==home.lower())):
+                if m["status"] not in ("NS", None):
+                    gh=m["goals_home"]; ga=m["goals_away"]
+                    status=m["status"]; winner=m["winner"]
+                    fin=status in {"FT","AET","PEN","AWD","WO"}
+                    lv=not fin and status!="NS"
+                break
+
+        if fin:
+            sb='<span style="background:#22c55e;color:#000;font-size:8px;font-weight:800;padding:1px 6px;border-radius:4px;">FT</span>'
+            col_h="#22c55e" if winner==home else "#f87171"
+            col_a="#22c55e" if winner==away else "#f87171"
+            bg_h="rgba(34,197,94,0.07)" if winner==home else "transparent"
+            bg_a="rgba(34,197,94,0.07)" if winner==away else "transparent"
+            rh=f'<span style="font-size:20px;font-weight:900;color:{col_h};">{gh if gh is not None else "?"}</span>'
+            ra=f'<span style="font-size:20px;font-weight:900;color:{col_a};">{ga if ga is not None else "?"}</span>'
+            ch_h=" 👑" if winner==home else ""
+            ch_a=" 👑" if winner==away else ""
+        elif lv:
+            sb='<span style="background:#ef4444;color:#fff;font-size:8px;font-weight:800;padding:1px 6px;border-radius:4px;">● LIVE</span>'
+            col_h=col_a="#facc15"; bg_h=bg_a="transparent"
+            rh=f'<span style="font-size:20px;font-weight:900;color:#facc15;">{gh or 0}</span>'
+            ra=f'<span style="font-size:20px;font-weight:900;color:#facc15;">{ga or 0}</span>'
+            ch_h=ch_a=""
+        else:
+            sb=f'<span style="color:#aaa;font-size:10px;font-weight:600;">QF · {date}</span>'
+            pr2 = all_probs.get((home,away)) or h2h(home,away)
+            ml, top5 = predict_score(home, away)
+            col_h="#4ade80" if pr2["team_a"]>pr2["team_b"] else "#f87171"
+            col_a="#4ade80" if pr2["team_b"]>pr2["team_a"] else "#f87171"
+            if abs(pr2["team_a"]-pr2["team_b"])<5: col_h=col_a="#facc15"
+            bg_h=bg_a="transparent"
+            rh=f'<span style="font-size:12px;font-weight:800;color:{col_h};">{pr2["team_a"]:.1f}%</span>'
+            ra=f'<span style="font-size:12px;font-weight:800;color:{col_a};">{pr2["team_b"]:.1f}%</span>'
+            ch_h=ch_a=""
+            pred_line=(f'<div style="font-size:9px;color:#555;margin-top:2px;">'
+                       f'Pred: {ml[0]}–{ml[1]} ({ml[2]:.1f}%) · '
+                       f'Draw {pr2["draw_90"]:.1f}%</div>')
+            qf_html.append(
+                f'<div style="border:1px solid #333;border-radius:6px;padding:9px 11px;'
+                f'background:#1a1a1a;margin-bottom:6px;">'
+                f'<div style="margin-bottom:5px;">{sb}</div>'
+                f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;margin-bottom:2px;">'
+                f'<span style="font-size:15px;">{fh}</span>'
+                f'<span style="flex:1;font-size:13px;font-weight:700;color:#ddd;">{home}</span>{rh}</div>'
+                f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;">'
+                f'<span style="font-size:15px;">{fa}</span>'
+                f'<span style="flex:1;font-size:13px;font-weight:700;color:#ddd;">{away}</span>{ra}</div>'
+                f'{pred_line}</div>'
+            )
+            continue
+
+        qf_html.append(
+            f'<div style="border:1px solid #333;border-radius:6px;padding:9px 11px;'
+            f'background:#1a1a1a;margin-bottom:6px;">'
+            f'<div style="margin-bottom:5px;">{sb}</div>'
+            f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;background:{bg_h};border-radius:4px;margin-bottom:2px;">'
+            f'<span style="font-size:15px;">{fh}</span>'
+            f'<span style="flex:1;font-size:13px;font-weight:700;color:#ddd;">{home}{ch_h}</span>{rh}</div>'
+            f'<div style="display:flex;align-items:center;gap:6px;padding:3px 4px;background:{bg_a};border-radius:4px;">'
+            f'<span style="font-size:15px;">{fa}</span>'
+            f'<span style="flex:1;font-size:13px;font-weight:700;color:#ddd;">{away}{ch_a}</span>{ra}</div>'
+            f'</div>'
+        )
+
+    qf_c1, qf_gap, qf_c2 = st.columns([5,1,5])
+    with qf_c1:
+        st.markdown("**Jul 9–10**")
+        st.markdown("".join(qf_html[:2]), unsafe_allow_html=True)
+    with qf_gap:
+        st.markdown('<div style="border-left:1px dashed #1e1e1e;height:100%;margin:0 auto;width:0;"></div>',unsafe_allow_html=True)
+    with qf_c2:
+        st.markdown("**Jul 11**")
+        st.markdown("".join(qf_html[2:]), unsafe_allow_html=True)
+
+    st.divider()
+    st.caption("**Semifinals** Jul 14–15 · **Final** Jul 19 @ MetLife Stadium, New Jersey")
 
 # ─────────────────────────────────────────────────────────────────────
 # TAB 6 — Map
